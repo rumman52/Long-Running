@@ -26,7 +26,6 @@ def _check_evidence(
     now: datetime,
 ) -> tuple[list[str], list[str]]:
     """Return (blocking reasons, revalidation reasons) for one evidence item."""
-    del evidence_id  # The caller owns the identifier; the evidence object is the data source.
     blocking: list[str] = []
     revalidation: list[str] = []
 
@@ -34,6 +33,8 @@ def _check_evidence(
         revalidation.append("REQUIRED_EVIDENCE_MISSING")
         return blocking, revalidation
 
+    if evidence.evidence_id != evidence_id:
+        revalidation.append("EVIDENCE_ID_MISMATCH")
     if not evidence.verified:
         revalidation.append("EVIDENCE_UNVERIFIED")
     if evidence.invalidated:
@@ -84,6 +85,9 @@ def _check_approval(
         blocking.append("APPROVAL_MISSING")
         return blocking, revalidation
 
+    if approval.approval_id != approval_id:
+        blocking.append("APPROVAL_ID_MISMATCH")
+
     if approval.status == ApprovalStatus.REVOKED:
         blocking.append("APPROVAL_REVOKED")
     elif approval.status != ApprovalStatus.APPROVED:
@@ -101,6 +105,18 @@ def _check_approval(
     return blocking, revalidation
 
 
+def _requirements_for_action(
+    requirements: tuple[tuple[str, tuple[str, ...]], ...],
+    category: str,
+) -> tuple[str, ...]:
+    """Resolve requirements from trusted, contract-owned policy."""
+    resolved: list[str] = []
+    for action_category, identifiers in requirements:
+        if action_category == category:
+            resolved.extend(identifiers)
+    return tuple(dict.fromkeys(resolved))
+
+
 def validate_action(
     contract: IntentContract,
     action: ActionRequest,
@@ -108,9 +124,9 @@ def validate_action(
 ) -> ValidationResult:
     """Validate whether an action is currently eligible to execute.
 
-    The function performs no side effects and does not call a model or external service.
-    Integrations must invoke it at a trusted action boundary and must not execute when the
-    decision is anything other than ALLOW.
+    This function performs no side effects and does not call a model or external service.
+    Integrations must create ActionRequest objects at a trusted action boundary and must not
+    execute when the decision is anything other than ALLOW.
     """
     blocking: list[str] = []
     revalidation: list[str] = []
@@ -142,7 +158,10 @@ def validate_action(
         revalidation.append("VALIDATION_TIME_NOT_TIMEZONE_AWARE")
         details.append("Validation time must include timezone information.")
 
-    for evidence_id in action.required_evidence_ids:
+    required_evidence_ids = _requirements_for_action(
+        contract.required_evidence_by_action, action.category
+    )
+    for evidence_id in required_evidence_ids:
         evidence = context.evidence.get(evidence_id)
         evidence_blocking, evidence_revalidation = _check_evidence(
             evidence_id, evidence, context.now
@@ -154,8 +173,10 @@ def validate_action(
                 f"Evidence '{evidence_id}' is missing, stale, invalidated, or unverifiable."
             )
 
-    required_approval_ids = list(action.required_approval_ids)
-    if action.consequential:
+    required_approval_ids = list(
+        _requirements_for_action(contract.required_approvals_by_action, action.category)
+    )
+    if action.category in contract.consequential_actions:
         required_approval_ids.extend(contract.required_approvals)
 
     for approval_id in dict.fromkeys(required_approval_ids):
