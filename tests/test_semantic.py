@@ -4,6 +4,7 @@ import json
 from io import BytesIO
 from typing import cast
 from unittest.mock import patch
+from urllib.request import Request
 
 import pytest
 
@@ -244,9 +245,9 @@ def test_gemma_adapter_requests_structured_json_and_reads_usage() -> None:
         provider = GemmaOllamaProvider(timeout_seconds=3.0)
         response = provider.compare(make_request())
 
-    request = cast(object, captured["request"])
-    assert getattr(request, "full_url") == "http://127.0.0.1:11434/api/chat"
-    body = json.loads(cast(bytes, getattr(request, "data")))
+    request = cast(Request, captured["request"])
+    assert request.full_url == "http://127.0.0.1:11434/api/chat"
+    body = json.loads(cast(bytes, request.data))
     assert body["stream"] is False
     assert body["format"] == SEMANTIC_OUTPUT_SCHEMA
     assert body["options"]["temperature"] == 0
