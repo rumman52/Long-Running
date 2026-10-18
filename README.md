@@ -22,7 +22,7 @@ An agent can begin with a correct plan and later forget a constraint, use stale 
 ## What is not yet implemented
 
 - A universal wrapper that intercepts every tool call from arbitrary agents.
-- A production MCP adapter or a second independent agent-framework adapter.
+- Full MCP SDK conformance and a second independent agent-framework adapter. A minimal local MCP stdio scaffold is included, but it is not a complete SDK replacement.
 - Model-assisted semantic or trajectory drift detection. The current detector checks structured policy and plan relationships; it does not reliably interpret every natural-language deviation.
 - Automatic verification of external side effects or provider-specific reconciliation after ambiguous outcomes.
 - Authenticated identity/approval services, multi-tenant deployment, a dashboard, or production operational controls.
@@ -174,6 +174,21 @@ See [Threat Model](docs/THREAT_MODEL.md) and [Runtime Guide](docs/RUNTIME_GUIDE.
 ## Roadmap
 
 See [docs/ROADMAP.md](docs/ROADMAP.md). Milestones should be marked complete only when acceptance tests and evidence support the claim.
+
+## Guarded tool adapter and MCP demo
+
+The repository includes a reusable host-owned tool registry and a minimal MCP stdio server. Each registered tool has a fixed action category and input schema. Calls obtain the active authorized contract and trusted validation context, then pass through the engine's pre-action gate.
+
+Install and run the local demonstration:
+
+```bash
+python -m pip install -e ".[dev]"
+python examples/guarded_mcp_server.py
+```
+
+The demo uses fake local callbacks and a temporary SQLite database; it does not contact an external service. See [MCP adapter guide](docs/MCP_ADAPTER.md) and the portable [Agent Skill](skills/intent-integrity/SKILL.md).
+
+**Important:** only registered tools are guarded. The host must not expose a parallel unguarded route. The MCP wrapper is a limited stdio scaffold, not a complete MCP SDK replacement. Provider-specific reconciliation, authenticated approval services, real-host integration, semantic drift evaluation, and production security qualification remain incomplete.
 
 ## License
 

@@ -1,0 +1,123 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import UTC, datetime
+from io import StringIO
+
+from intent_integrity import (
+    GuardedToolAdapter, IntentContract, IntentIntegrityEngine, MCPStdioServer,
+    PlanStep, SQLiteEventStore, ToolDefinition, ValidationContext,
+)
+
+NOW = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+
+
+def make_server(store: SQLiteEventStore):
+    active = IntentContract(
+        contract_id="mcp-test-task", version=1,
+        goal="Prepare a report; never delete source data.",
+        permitted_actions=("write_report",), prohibited_actions=("delete_source",),
+        acceptance_criteria=("Report is accurate",),
+    )
+    engine = IntentIntegrityEngine(store, clock=lambda: NOW)
+    engine.start_task(active)
+    engine.record_plan(active, (
+        PlanStep("draft", "Draft report", "write_report",
+                 acceptance_criteria=("Report is accurate",)),
+    ))
+    calls: list[dict[str, object]] = []
+
+    def action_id(task: str, name: str, args: object) -> str:
+        data = json.dumps({"task": task, "name": name, "args": args}, sort_keys=True)
+        return f"{name}:{hashlib.sha256(data.encode()).hexdigest()}"
+
+    adapter = GuardedToolAdapter(
+        engine, lambda: active,
+        lambda current: ValidationContext(
+            now=NOW, evidence={}, approvals={}, active_contract_version=current.version,
+        ),
+        action_id,
+    )
+    schema = {"type": "object", "properties": {"report": {"type": "string"}},
+              "required": ["report"], "additionalProperties": False}
+    adapter.register_tool(ToolDefinition(
+        "save_report", "Save a draft", "write_report", schema,
+        lambda args: (calls.append(dict(args)) or {"saved": True}),
+    ))
+    adapter.register_tool(ToolDefinition(
+        "delete_source", "Prohibited demo tool", "delete_source",
+        {"type": "object", "properties": {"target": {"type": "string"}},
+         "required": ["target"], "additionalProperties": False},
+        lambda args: (calls.append(dict(args)) or {"deleted": True}),
+    ))
+    return MCPStdioServer(adapter), calls
+
+
+def test_initialize_and_tool_listing() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, _ = make_server(store)
+        init = server.handle_message({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {"protocolVersion": "2025-03-26", "capabilities": {}},
+        })
+        listed = server.handle_message({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+        assert init is not None and listed is not None
+        assert init["result"]["protocolVersion"] == "2025-03-26"  # type: ignore[index]
+        result = listed["result"]  # type: ignore[assignment]
+        assert isinstance(result, dict)
+        tools = result["tools"]
+        assert isinstance(tools, list)
+        assert {tool["name"] for tool in tools} == {"save_report", "delete_source"}
+
+
+def test_blocked_mcp_call_does_not_reach_handler() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, calls = make_server(store)
+        reply = server.handle_message({
+            "jsonrpc": "2.0", "id": 3, "method": "tools/call",
+            "params": {"name": "delete_source", "arguments": {"target": "source.csv"}},
+        })
+        assert reply is not None
+        result = reply["result"]
+        assert isinstance(result, dict) and result["isError"] is True
+        content = result["content"]
+        assert isinstance(content, list) and isinstance(content[0], dict)
+        payload = json.loads(content[0]["text"])
+        assert payload["decision"] == "BLOCK" and payload["executed"] is False
+        assert calls == []
+
+
+def test_allowed_mcp_call_returns_structured_result() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, calls = make_server(store)
+        reply = server.handle_message({
+            "jsonrpc": "2.0", "id": "call-1", "method": "tools/call",
+            "params": {"name": "save_report", "arguments": {"report": "Draft"}},
+        })
+        assert reply is not None
+        result = reply["result"]
+        assert isinstance(result, dict) and result["isError"] is False
+        content = result["content"]
+        assert isinstance(content, list) and isinstance(content[0], dict)
+        payload = json.loads(content[0]["text"])
+        assert payload["decision"] == "ALLOW" and payload["executed"] is True
+        assert calls == [{"report": "Draft"}]
+
+
+def test_stdio_parse_errors_and_notifications() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, _ = make_server(store)
+        assert server.handle_message({
+            "jsonrpc": "2.0", "method": "notifications/initialized",
+        }) is None
+        output = StringIO()
+        server.serve_stdio(StringIO("{not-json}\n"), output)
+        assert json.loads(output.getvalue())["error"]["code"] == -32700
+
+
+def test_unknown_method_returns_json_rpc_error() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, _ = make_server(store)
+        reply = server.handle_message({"jsonrpc": "2.0", "id": 4, "method": "tools/delete"})
+        assert reply is not None and reply["error"]["code"] == -32601
