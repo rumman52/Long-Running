@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/rumman52/Long-Running/main/schemas/intent-contract.schema.json",
+  "title": "Intent Integrity Contract",
+  "description": "Portable contract describing a user's task intent and trusted action requirements.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_id",
+    "version",
+    "goal",
+    "permitted_actions",
+    "prohibited_actions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "constraints": {
+      "$ref": "#/$defs/stringList"
+    },
+    "permitted_actions": {
+      "$ref": "#/$defs/stringList"
+    },
+    "prohibited_actions": {
+      "$ref": "#/$defs/stringList"
+    },
+    "consequential_actions": {
+      "$ref": "#/$defs/stringList"
+    },
+    "required_evidence_by_action": {
+      "$ref": "#/$defs/actionRequirements"
+    },
+    "required_approvals_by_action": {
+      "$ref": "#/$defs/actionRequirements"
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/assumption"
+      }
+    },
+    "required_approvals": {
+      "$ref": "#/$defs/stringList"
+    },
+    "acceptance_criteria": {
+      "$ref": "#/$defs/stringList"
+    }
+  },
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "actionRequirements": {
+      "type": "object",
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/stringList"
+      }
+    },
+    "assumption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assumption_id",
+        "statement"
+      ],
+      "properties": {
+        "assumption_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_ids": {
+          "$ref": "#/$defs/stringList"
+        },
+        "invalidation_conditions": {
+          "$ref": "#/$defs/stringList"
+        }
+      }
+    }
+  }
+}
