@@ -93,6 +93,20 @@ Use `engine.record_step_completed(...)` only after the host has checked the cite
 
 A recovery bundle can report blocking drift. The host must stop or replan when blocking drift exists; this scaffold does not autonomously choose a new authorized goal.
 
+## Completion audit
+
+After recording every current-plan step through `record_step_completed`, supply fresh evidence from a trusted source:
+
+```python
+report = engine.complete_task(contract, evidence=trusted_evidence, now=datetime.now(UTC))
+if not report.ready:
+    print(report.reason_codes)
+else:
+    print(report.evidence_by_criterion)
+```
+
+The engine records `TASK_COMPLETED` only when every acceptance criterion has evidence cited by a current-plan step, every plan step is complete in dependency order, each cited evidence item is verified and current, the plan has no blocking drift, and all claimed actions have a known successful outcome. Progress from a previous plan is not enough. An empty set of acceptance criteria is not sufficient for a completion declaration. The host must independently authenticate the evidence and assess whether the evidence actually proves each natural-language criterion. The audit cannot resolve ambiguous external effects or prevent concurrent mutation of the ledger between the audit and completion event; production integrations must serialize task transitions.
+
 ## 6. Assumption and plan revalidation
 
 If a trusted source changes or an assumption becomes false, record an `ASSUMPTION_INVALIDATED` event. The engine will block guarded actions while that assumption remains invalidated.
