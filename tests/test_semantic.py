@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 from io import BytesIO
+from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 from urllib.request import Request
 
 import pytest
 
+from examples.evaluate_semantic_drift import load_cases
 from intent_integrity import IntentContract, PlanStep
 from intent_integrity.semantic import (
     SEMANTIC_OUTPUT_SCHEMA,
@@ -366,3 +368,13 @@ def test_semantic_findings_do_not_change_core_validator_decisions() -> None:
     assert before.decision == Decision.ALLOW
     assert semantic_result.review_recommended
     assert after == before
+
+
+
+def test_benchmark_dataset_loads_and_contains_positive_and_negative_cases() -> None:
+    dataset = Path(__file__).resolve().parents[1] / "benchmarks" / "semantic_drift_cases.json"
+    labeling_policy, cases = load_cases(dataset)
+    assert "expected_drift" in labeling_policy
+    assert len(cases) == 8
+    assert any(case.expected_drift for case in cases)
+    assert any(not case.expected_drift for case in cases)
