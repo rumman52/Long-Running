@@ -36,11 +36,11 @@ class Assumption:
 
 @dataclass(frozen=True, slots=True)
 class IntentContract:
-    """Machine-readable portion of the user's intent for a long-running task.
+    """Versioned policy derived from the user's intent and accepted by the host.
 
-    Natural-language constraints and acceptance criteria are preserved as declarations.
-    They are not automatically enforced unless an integration maps them to machine-checkable
-    preconditions or validation rules.
+    Action requirements are contract-owned rather than supplied by the model with each action.
+    Natural-language constraints and acceptance criteria are declarations; they are not
+    automatically enforced unless mapped to machine-checkable rules.
     """
 
     contract_id: str
@@ -49,6 +49,9 @@ class IntentContract:
     constraints: tuple[str, ...] = ()
     permitted_actions: tuple[str, ...] = ()
     prohibited_actions: tuple[str, ...] = ()
+    consequential_actions: tuple[str, ...] = ()
+    required_evidence_by_action: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    required_approvals_by_action: tuple[tuple[str, tuple[str, ...]], ...] = ()
     assumptions: tuple[Assumption, ...] = ()
     required_approvals: tuple[str, ...] = ()
     acceptance_criteria: tuple[str, ...] = ()
@@ -56,7 +59,7 @@ class IntentContract:
 
 @dataclass(frozen=True, slots=True)
 class Evidence:
-    """Evidence about a resource or condition.
+    """Evidence about a resource.
 
     observed_version/current_version should be populated for versioned resources such as
     files, branches, records, or documents. If a resource is versioned but its current version
@@ -86,13 +89,10 @@ class Approval:
 
 @dataclass(frozen=True, slots=True)
 class ActionRequest:
-    """A proposed action that must pass validation before execution."""
+    """A proposed action. Requirements are resolved from trusted contract policy."""
 
     action_id: str
     category: str
-    consequential: bool = True
-    required_evidence_ids: tuple[str, ...] = ()
-    required_approval_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
