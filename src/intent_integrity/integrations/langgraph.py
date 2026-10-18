@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable, Mapping
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 from intent_integrity.adapter import GuardedToolAdapter, ToolDefinition
 
@@ -62,7 +62,7 @@ def _build_args_model(definition: ToolDefinition) -> Any:
         if schema_type == "integer":
             return StrictInt
         if schema_type == "number":
-            return Union[StrictInt, StrictFloat]
+            return StrictInt | StrictFloat
         if schema_type == "boolean":
             return StrictBool
         if schema_type == "null":
@@ -95,8 +95,7 @@ def _build_args_model(definition: ToolDefinition) -> Any:
                     else Field(default=None, description=description)
                 )
                 if child_name not in nested_required:
-                    from typing import Optional
-                    child_type = Optional[child_type]
+                    child_type = child_type | None
                 nested_fields[child_name] = (child_type, default)
             return create_model(
                 re.sub(r"[^A-Za-z0-9_]", "_", f"{definition.name}_{field_name}"),
@@ -119,8 +118,7 @@ def _build_args_model(definition: ToolDefinition) -> Any:
             else Field(default=None, description=description)
         )
         if field_name not in required:
-            from typing import Optional
-            field_type = Optional[field_type]
+            field_type = field_type | None
         fields[field_name] = (field_type, default)
 
     return create_model(
