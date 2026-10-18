@@ -6,9 +6,9 @@ Detect intent drift before an action is executed by checking structured user int
 
 ## Components
 
-- **IntentContract:** durable, versioned representation of a task goal, constraints, action allowlist/denylist, assumptions, approval requirements, and acceptance criteria.
+- **IntentContract:** durable, versioned representation of a task goal, constraints, action allowlist/denylist, action consequences, per-action evidence and approval requirements, assumptions, and acceptance criteria.
 - **Evidence:** observation metadata including source, timestamp, resource identity/version, freshness policy, and explicit invalidation/verification flags.
-- **ActionRequest:** proposed action category plus evidence and approvals required for that action.
+- **ActionRequest:** proposed action ID and category only. Required evidence and approvals are resolved from the contract, not supplied by the model with each action.
 - **ValidationContext:** current time and trusted evidence/approval observations supplied by the integration.
 - **Validator:** pure, deterministic function returning ALLOW, BLOCK, or REVALIDATION_REQUIRED.
 - **ValidationResult:** reason codes and an audit-friendly record of the decision.
@@ -23,7 +23,7 @@ Blocking reasons take precedence over revalidation reasons. A blocked action mus
 
 ## Trust boundary
 
-The validator does not trust model-generated claims as evidence. Evidence and approval records must come from trusted integration code or authenticated systems. A model may help propose a contract, but contract changes must be validated and versioned by the host application.
+The validator does not trust model-generated claims as evidence. Evidence and approval records must come from trusted integration code or authenticated systems. A model may help propose a contract, but the host must validate, authorize, and version that contract before it becomes active. The model must not control the action category's allowlist, consequential classification, or required checks at runtime.
 
 ## Limits of this milestone
 
