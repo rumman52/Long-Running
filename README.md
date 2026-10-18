@@ -293,7 +293,8 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone acceptance criteria and the
 │   ├── MCP_ADAPTER.md             # Guarded tools and MCP stdio scope
 │   ├── ROADMAP.md                 # Milestones and acceptance criteria
 │   ├── RUNTIME_GUIDE.md
-│   ├── SEMANTIC_DRIFT.md           # Optional semantic comparator and evaluation           # Runtime, recovery, and completion audit
+│   ├── SEMANTIC_DRIFT.md           # Optional semantic comparator and evaluation
+│   └── THREAT_MODEL.md             # Threats, mitigations, and known gaps           # Runtime, recovery, and completion audit
 │   └── THREAT_MODEL.md            # Threats, mitigations, and known gaps
 ├── benchmarks/
 │   └── semantic_drift_cases.json
