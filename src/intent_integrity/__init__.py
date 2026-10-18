@@ -10,7 +10,8 @@ from intent_integrity.engine import (
     build_compact_context,
 )
 from intent_integrity.events import (
-    ActionRecord, ActionStatus, CheckpointRecord, EventType, StoredEvent, TaskEvent,
+    ActionRecord, ActionStatus, CheckpointRecord, EventType, ExternalActionRecord,
+    StoredEvent, TaskEvent,
 )
 from intent_integrity.mcp_server import MCPStdioServer
 from intent_integrity.models import (
@@ -22,9 +23,16 @@ from intent_integrity.store import (
     ActionAlreadyClaimed, ActionStateError, DuplicateEventConflict, EventIntegrityError,
     EventStoreError, SQLiteEventStore,
 )
+from intent_integrity.reconciliation import (
+    ExternalActionCoordinator, ExternalExecutionResult, ExternalOperation, OutcomeStatus,
+    ProviderOutcome, ProviderRequest, ReconciliationProvider,
+)
 from intent_integrity.validator import validate_action
 
 __all__ = [
+    "ExternalActionCoordinator", "ExternalActionRecord", "ExternalExecutionResult",
+    "ExternalOperation", "OutcomeStatus", "ProviderOutcome", "ProviderRequest",
+    "ReconciliationProvider",
     "ActionAlreadyClaimed", "ActionExecutionOutcome", "ActionRecord", "ActionRequest",
     "ActionStateError", "ActionStatus", "Approval", "ApprovalStatus", "Assumption",
     "CheckpointRecord", "CheckpointState", "CompletionReport", "Decision",

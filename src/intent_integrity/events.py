@@ -27,6 +27,8 @@ class EventType(StrEnum):
     ACTION_CLAIMED = "ACTION_CLAIMED"
     ACTION_SUCCEEDED = "ACTION_SUCCEEDED"
     ACTION_OUTCOME_UNKNOWN = "ACTION_OUTCOME_UNKNOWN"
+    ACTION_RECONCILED = "ACTION_RECONCILED"
+    ACTION_RETRY_CLAIMED = "ACTION_RETRY_CLAIMED"
     CONTRACT_AMENDED = "CONTRACT_AMENDED"
     CHECKPOINT_SAVED = "CHECKPOINT_SAVED"
     TASK_COMPLETED = "TASK_COMPLETED"
@@ -38,6 +40,8 @@ class ActionStatus(StrEnum):
     CLAIMED = "CLAIMED"
     SUCCEEDED = "SUCCEEDED"
     UNKNOWN = "UNKNOWN"
+    NOT_APPLIED = "NOT_APPLIED"
+    REJECTED = "REJECTED"
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,3 +99,13 @@ class ActionRecord:
     status: ActionStatus
     claimed_at: datetime
     result: dict[str, object] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ExternalActionRecord:
+    """Immutable provider request and revision paired with an ordinary action claim."""
+
+    action: ActionRecord
+    operation: dict[str, object]
+    revision: int
+    attempts: int

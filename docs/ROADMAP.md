@@ -56,12 +56,18 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 
 ## M5 — External Outcome Reconciliation
 
-**Status: Planned.**
+**Status: Implemented for provider-aware operations; live-provider qualification remains an integration requirement.**
 
-- [ ] Define provider-neutral interfaces for idempotency keys, conditional operations, and outcome lookup.
-- [ ] Reconcile CLAIMED/UNKNOWN actions after restart or timeout.
-- [ ] Ensure a retry cannot duplicate an external side effect.
-- [ ] Add fault-injection tests for response loss, process crash, stale versions, and provider errors.
+- [x] Define provider-neutral interfaces for idempotency keys, conditional operations, and outcome lookup.
+- [x] Reconcile provider-aware CLAIMED/UNKNOWN actions after restart or timeout without resubmission.
+- [x] Guard explicit retries with the original identity, payload, key, deadline, version condition, and current authorization; provider-side atomic idempotency is required.
+- [x] Add fault-injection tests for response loss, process crash, stale versions, and provider errors.
+
+Evidence: `tests/test_reconciliation.py` also covers concurrent retry claims, stale observations,
+expired approvals/keys, malformed responses, missing providers, atomic audit-write failures,
+and completion verification after reconciliation. Run `python examples/external_reconciliation.py`
+and the checks in [the reconciliation guide](EXTERNAL_RECONCILIATION.md). Legacy callback claims
+without provider metadata remain fail closed. These local tests do not qualify a live service.
 
 ## M6 — Optional Semantic Drift Detection and Gemma Adapter
 

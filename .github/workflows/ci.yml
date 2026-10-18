@@ -35,6 +35,9 @@ jobs:
       - name: Run runtime example
         run: python examples/long_running_task.py
 
+      - name: Run external reconciliation example
+        run: python examples/external_reconciliation.py
+
       - name: Run Ruff
         run: ruff check src tests examples
 

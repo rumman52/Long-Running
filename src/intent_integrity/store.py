@@ -17,6 +17,7 @@ from intent_integrity.events import (
     ActionStatus,
     CheckpointRecord,
     EventType,
+    ExternalActionRecord,
     StoredEvent,
     TaskEvent,
 )
@@ -124,6 +125,21 @@ class SQLiteEventStore:
                     result_json TEXT,
                     PRIMARY KEY (task_id, action_id)
                 );
+
+                CREATE TABLE IF NOT EXISTS external_operations (
+                    task_id TEXT NOT NULL,
+                    action_id TEXT NOT NULL,
+                    provider_id TEXT NOT NULL,
+                    operation_id TEXT NOT NULL,
+                    operation_json TEXT NOT NULL,
+                    operation_hash TEXT NOT NULL,
+                    revision INTEGER NOT NULL DEFAULT 0,
+                    attempts INTEGER NOT NULL DEFAULT 1,
+                    PRIMARY KEY (task_id, action_id),
+                    UNIQUE (provider_id, operation_id),
+                    FOREIGN KEY (task_id, action_id)
+                        REFERENCES action_claims(task_id, action_id)
+                );
                 """
             )
 
@@ -158,61 +174,65 @@ class SQLiteEventStore:
             event_hash=str(row["event_hash"]),
         )
 
+    def _append_in_transaction(self, event: TaskEvent) -> StoredEvent:
+        """Append using the caller's write transaction and lock."""
+        existing = self._connection.execute(
+            "SELECT * FROM events WHERE task_id = ? AND event_id = ?",
+            (event.task_id, event.event_id),
+        ).fetchone()
+        if existing is not None:
+            stored = self._row_to_event(existing)
+            same_event = (
+                stored.event.event_type == event.event_type
+                and stored.event.occurred_at == event.occurred_at
+                and stored.event.payload == event.payload
+            )
+            if not same_event:
+                raise DuplicateEventConflict(
+                    "event_id was already used with different event content"
+                )
+            return stored
+
+        latest = self._connection.execute(
+            "SELECT sequence, event_hash FROM events "
+            "WHERE task_id = ? ORDER BY sequence DESC LIMIT 1",
+            (event.task_id,),
+        ).fetchone()
+        sequence = int(latest["sequence"]) + 1 if latest else 1
+        previous_hash = str(latest["event_hash"]) if latest else _ZERO_HASH
+        envelope_json = _canonical_json(
+            _event_envelope(event, sequence, previous_hash)
+        )
+        event_hash = _sha256(envelope_json)
+        self._connection.execute(
+            """
+            INSERT INTO events (
+                task_id, sequence, event_id, event_type, occurred_at,
+                payload_json, previous_hash, event_hash, envelope_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                event.task_id,
+                sequence,
+                event.event_id,
+                event.event_type.value,
+                event.occurred_at.isoformat(),
+                _canonical_json(event.payload),
+                previous_hash,
+                event_hash,
+                envelope_json,
+            ),
+        )
+        return StoredEvent(event, sequence, previous_hash, event_hash)
+
     def append_event(self, event: TaskEvent) -> StoredEvent:
-        """Append once; identical retries are idempotent and conflicting retries fail."""
+        """Append once; identical retries are idempotent and conflicts fail."""
         with self._lock:
             self._connection.execute("BEGIN IMMEDIATE")
             try:
-                existing = self._connection.execute(
-                    "SELECT * FROM events WHERE task_id = ? AND event_id = ?",
-                    (event.task_id, event.event_id),
-                ).fetchone()
-                if existing is not None:
-                    stored = self._row_to_event(existing)
-                    same_event = (
-                        stored.event.event_type == event.event_type
-                        and stored.event.occurred_at == event.occurred_at
-                        and stored.event.payload == event.payload
-                    )
-                    if not same_event:
-                        raise DuplicateEventConflict(
-                            "event_id was already used with different event content"
-                        )
-                    self._connection.execute("COMMIT")
-                    return stored
-
-                latest = self._connection.execute(
-                    "SELECT sequence, event_hash FROM events "
-                    "WHERE task_id = ? ORDER BY sequence DESC LIMIT 1",
-                    (event.task_id,),
-                ).fetchone()
-                sequence = int(latest["sequence"]) + 1 if latest else 1
-                previous_hash = str(latest["event_hash"]) if latest else _ZERO_HASH
-                envelope_json = _canonical_json(
-                    _event_envelope(event, sequence, previous_hash)
-                )
-                event_hash = _sha256(envelope_json)
-                self._connection.execute(
-                    """
-                    INSERT INTO events (
-                        task_id, sequence, event_id, event_type, occurred_at,
-                        payload_json, previous_hash, event_hash, envelope_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        event.task_id,
-                        sequence,
-                        event.event_id,
-                        event.event_type.value,
-                        event.occurred_at.isoformat(),
-                        _canonical_json(event.payload),
-                        previous_hash,
-                        event_hash,
-                        envelope_json,
-                    ),
-                )
+                stored = self._append_in_transaction(event)
                 self._connection.execute("COMMIT")
-                return StoredEvent(event, sequence, previous_hash, event_hash)
+                return stored
             except Exception:
                 if self._connection.in_transaction:
                     self._connection.execute("ROLLBACK")
@@ -364,6 +384,11 @@ class SQLiteEventStore:
             raise ValueError("final action status must be SUCCEEDED or UNKNOWN")
         result_json = _canonical_json(dict(result))
         with self._lock:
+            if self._connection.execute(
+                "SELECT 1 FROM external_operations WHERE task_id = ? AND action_id = ?",
+                (task_id, action_id),
+            ).fetchone() is not None:
+                raise ActionStateError("External actions require revision-checked transitions")
             row = self._connection.execute(
                 "SELECT status, result_json FROM action_claims "
                 "WHERE task_id = ? AND action_id = ?",
@@ -407,3 +432,143 @@ class SQLiteEventStore:
             claimed_at=datetime.fromisoformat(str(row["claimed_at"])),
             result=result,
         )
+
+    def claim_external_action(
+        self, task_id: str, action_id: str, category: str,
+        operation: Mapping[str, object], claimed_at: datetime,
+    ) -> ExternalActionRecord:
+        """Atomically pin a provider request, claim its identity, and audit the claim."""
+        operation_json = json.dumps(dict(operation), sort_keys=True, allow_nan=False)
+        provider_id, operation_id = operation.get("provider_id"), operation.get("operation_id")
+        if not all(isinstance(x, str) and x.strip()
+                   for x in (task_id, action_id, category, provider_id, operation_id)):
+            raise ValueError("External operation identifiers must be non-empty strings")
+        if claimed_at.tzinfo is None or claimed_at.utcoffset() is None:
+            raise ValueError("claimed_at must be timezone-aware")
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                self._connection.execute(
+                    "INSERT INTO action_claims VALUES (?, ?, ?, ?, ?, NULL)",
+                    (task_id, action_id, category, ActionStatus.CLAIMED.value,
+                     claimed_at.isoformat()),
+                )
+                self._connection.execute(
+                    "INSERT INTO external_operations "
+                    "(task_id, action_id, provider_id, operation_id, "
+                    "operation_json, operation_hash) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (task_id, action_id, provider_id, operation_id,
+                     operation_json, _sha256(operation_json)),
+                )
+                self._append_in_transaction(TaskEvent(
+                    task_id, EventType.ACTION_CLAIMED,
+                    {"action_id": action_id, "category": category,
+                     "provider_id": provider_id, "operation_id": operation_id,
+                     "operation_hash": _sha256(operation_json)}, occurred_at=claimed_at,
+                ))
+                self._connection.execute("COMMIT")
+            except Exception as exc:
+                if self._connection.in_transaction:
+                    self._connection.execute("ROLLBACK")
+                if isinstance(exc, sqlite3.IntegrityError) and exc.sqlite_errorcode in (
+                    sqlite3.SQLITE_CONSTRAINT_UNIQUE, sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY,
+                ):
+                    raise ActionAlreadyClaimed(
+                        "Action or logical provider operation was already claimed"
+                    ) from exc
+                raise
+        record = self.get_external_action(task_id, action_id)
+        assert record is not None
+        return record
+
+    def get_external_action(self, task_id: str, action_id: str) -> ExternalActionRecord | None:
+        """Read request and state from one database snapshot; verify request integrity."""
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT a.*, e.operation_json, e.operation_hash, e.revision, e.attempts "
+                "FROM action_claims a JOIN external_operations e "
+                "USING(task_id, action_id) WHERE a.task_id = ? AND a.action_id = ?",
+                (task_id, action_id),
+            ).fetchone()
+        if row is None:
+            return None
+        operation_json = str(row["operation_json"])
+        if _sha256(operation_json) != row["operation_hash"]:
+            raise EventIntegrityError("External operation hash verification failed")
+        operation = json.loads(operation_json)
+        if not isinstance(operation, dict):
+            raise EventIntegrityError("Stored external operation is malformed")
+        result = json.loads(row["result_json"]) if row["result_json"] is not None else None
+        return ExternalActionRecord(
+            ActionRecord(task_id, action_id, str(row["category"]),
+                         ActionStatus(row["status"]),
+                         datetime.fromisoformat(row["claimed_at"]), result),
+            operation, int(row["revision"]), int(row["attempts"]),
+        )
+
+    def list_external_actions(self, task_id: str) -> tuple[ExternalActionRecord, ...]:
+        """List provider-aware claims, including claims left by a process crash."""
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT action_id FROM external_operations WHERE task_id = ? ORDER BY rowid",
+                (task_id,),
+            ).fetchall()
+        return tuple(record for row in rows
+                     if (record := self.get_external_action(task_id, row["action_id"])) is not None)
+
+    def transition_external_action(
+        self, task_id: str, action_id: str, expected_revision: int,
+        status: ActionStatus, result: Mapping[str, object], now: datetime,
+        *, retry: bool = False,
+    ) -> ExternalActionRecord:
+        """Compare-and-set state plus audit event; stale writers cannot overwrite results."""
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("now must be timezone-aware")
+        result_json = json.dumps(dict(result), sort_keys=True, allow_nan=False)
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                current = self.get_external_action(task_id, action_id)
+                if current is None or current.revision != expected_revision:
+                    raise ActionStateError("External action revision changed or claim is missing")
+                if retry:
+                    if (current.action.status != ActionStatus.NOT_APPLIED
+                        or status != ActionStatus.CLAIMED):
+                        raise ActionStateError("Retry requires authoritative NOT_APPLIED state")
+                    expiry = datetime.fromisoformat(
+                        str(current.operation["idempotency_expires_at"])
+                    )
+                    if now >= expiry:
+                        raise ActionStateError("Provider idempotency window expired")
+                elif (current.action.status not in (ActionStatus.CLAIMED, ActionStatus.UNKNOWN,
+                                                   ActionStatus.NOT_APPLIED)
+                      or status not in (ActionStatus.UNKNOWN, ActionStatus.SUCCEEDED,
+                                        ActionStatus.NOT_APPLIED, ActionStatus.REJECTED)):
+                    raise ActionStateError("Illegal external outcome transition")
+                attempts = current.attempts + int(retry)
+                self._connection.execute(
+                    "UPDATE action_claims SET status = ?, result_json = ? "
+                    "WHERE task_id = ? AND action_id = ?",
+                    (status.value, result_json, task_id, action_id),
+                )
+                self._connection.execute(
+                    "UPDATE external_operations SET revision = revision + 1, attempts = ? "
+                    "WHERE task_id = ? AND action_id = ?",
+                    (attempts, task_id, action_id),
+                )
+                self._append_in_transaction(TaskEvent(
+                    task_id,
+                    EventType.ACTION_RETRY_CLAIMED if retry else EventType.ACTION_RECONCILED,
+                    {"action_id": action_id, "status": status.value,
+                     "revision": current.revision + 1, "attempts": attempts,
+                     "provider_outcome": dict(result)}, occurred_at=now,
+                ))
+                self._connection.execute("COMMIT")
+            except Exception:
+                if self._connection.in_transaction:
+                    self._connection.execute("ROLLBACK")
+                raise
+        record = self.get_external_action(task_id, action_id)
+        assert record is not None
+        return record
