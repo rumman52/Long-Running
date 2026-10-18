@@ -93,3 +93,19 @@ def test_assumption_model_is_round_tripped() -> None:
         ),
     )
     assert contract_from_dict(contract_to_dict(contract)) == contract
+
+
+def test_serialized_contract_matches_published_json_schema() -> None:
+    import json
+    from pathlib import Path
+
+    from jsonschema import Draft202012Validator
+
+    schema_path = Path(__file__).resolve().parents[1] / "schemas" / "intent-contract.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    Draft202012Validator.check_schema(schema)
+
+    contract = contract_from_dict(sample_contract_payload())
+    validator = Draft202012Validator(schema)
+    errors = list(validator.iter_errors(contract_to_dict(contract)))
+    assert errors == []
