@@ -1,215 +1,313 @@
-# Intent Drift in Long-Running AI Agents
+# Intent Integrity
 
-**Intent Integrity** is an open-source engineering project for preserving an authorized user goal while an AI agent works across many steps, tool calls, context compactions, and restarts.
+**A deterministic control layer for preserving authorized intent in long-running AI agents.**
 
-An agent can begin with a correct plan and later forget a constraint, use stale evidence, follow instructions found in an untrusted file, repeat an external action after a timeout, or claim completion without proof. This project adds a trusted intent contract and runtime checks around the agent. The model may propose actions; trusted code decides whether those actions may proceed.
+[![Python CI](https://github.com/rumman52/Long-Running/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rumman52/Long-Running/actions/workflows/ci.yml)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB)
 
-> **Status:** The repository contains the deterministic validation core, SQLite event history, hash-chain verification, checkpoints, structural plan-drift checks, compact context reconstruction, guarded tool registry, and a minimal MCP stdio scaffold. Automated tests and CI run on each change. This is an early engineering implementation, not a production security certification or universal semantic drift detector.
+Intent Integrity is a framework-neutral Python project that helps a trusted application keep an AI agent aligned with an explicitly authorized goal while it plans, calls tools, pauses, resumes, and recovers from uncertain outcomes.
+
+It turns important parts of that goal into a **versioned intent contract**, checks proposed actions against trusted evidence and approval state, records execution history, and provides recovery and external-outcome reconciliation primitives.
+
+**The core principle is simple: the agent may propose an action; trusted code decides whether that action is allowed to proceed.**
+
+> **Project maturity:** Early-stage engineering implementation. The deterministic validation core and initial runtime components are implemented. M5 includes a provider-neutral reconciliation coordinator and local fault-injection tests. Full MCP conformance, independent framework integration, qualified live-provider adapters, semantic drift evaluation, and production security qualification remain outstanding. See the [implementation roadmap](docs/ROADMAP.md) for the evidence-based status of each milestone.
+
+---
+
+## Start here
+
+- **New to the project?** Read [the architecture overview](docs/ARCHITECTURE.md).
+- **Want to run it?** Follow [Quick start](#quick-start).
+- **Want to understand the contract?** Read [the intent contract guide](docs/INTENT_CONTRACT.md).
+- **Integrating an agent or tool?** Read [the runtime guide](docs/RUNTIME_GUIDE.md) and [guarded adapter guide](docs/MCP_ADAPTER.md).
+- **Handling timeouts or duplicate external effects?** Read [external outcome reconciliation](docs/EXTERNAL_RECONCILIATION.md).
+- **Reviewing security boundaries?** Read [the threat model](docs/THREAT_MODEL.md).
+- **Checking what is complete?** Read [the roadmap](docs/ROADMAP.md).
+
+## The problem
+
+Long-running agents can start with a valid objective and still go wrong later:
+
+- A constraint disappears after context compaction or a restart.
+- A plan introduces an action the user never authorized.
+- Evidence becomes stale after the plan was created.
+- A consequential action proceeds without the required approval.
+- A timeout hides whether an external write succeeded, so a retry creates a duplicate.
+- An agent reports completion even though acceptance criteria are not supported by current evidence.
+
+Ordinary conversation history is not a reliable authorization boundary. Intent Integrity provides structured state and deterministic checks around the agent. It does **not** assume that a model will always remember the original request or correctly judge its own behavior.
+
+## How it works
+
+The runtime is built around four responsibilities:
+
+1. **Authorize** — a trusted host authenticates the user and creates the active intent contract.
+2. **Evaluate** — the engine checks plans and proposed actions against the contract, current trusted context, evidence, and approvals.
+3. **Control** — only an **ALLOW** decision may reach the guarded execution callback; the action is durably claimed before execution.
+4. **Recover and reconcile** — the system verifies saved state, rebuilds compact context, and checks ambiguous external outcomes before any retry.
+
+The model is not the authority for changing the contract, manufacturing evidence, granting approval, or declaring that an external side effect succeeded.
+
+### Architecture at a glance
+
+~~~mermaid
+flowchart TD
+    U[User goal] --> H[Trusted host authorizes request]
+    H --> C[Versioned intent contract]
+    A[AI agent] --> P[Proposed plan or action]
+    C --> D[Deterministic plan-drift checks]
+    P --> D
+    D --> V[Pre-action validator]
+    C --> V
+    E[Trusted evidence and approvals] --> V
+    V -->|BLOCK / REVALIDATION_REQUIRED| S[Stop and correct or revalidate]
+    V -->|ALLOW| K[Durable action claim]
+    K --> X[Host-controlled executor]
+    X --> O[Result or unknown outcome]
+    O --> L[(SQLite event history)]
+    C --> L
+    L --> CP[Verified checkpoint]
+    CP --> R[Recovery and compact context]
+    L --> R
+    R --> A
+    O --> RC[External outcome reconciliation]
+    RC --> L
+~~~
+
+The diagram shows the intended integration boundary. It does **not** mean that arbitrary agents are automatically intercepted. A host must route every consequential tool call through the guarded boundary; a separate unguarded route can bypass it.
 
 ## What is implemented
 
-- Typed intent, action, evidence, approval, and validation-result models.
-- The initially authorized contract is pinned in the task ledger. A changed goal or policy cannot silently replace it; amendments require an explicit, versioned host authorization reference.
-- Strict JSON serialization/deserialization and a JSON Schema for intent contracts.
-- Deterministic `ALLOW`, `BLOCK`, and `REVALIDATION_REQUIRED` decisions.
-- Contract-owned action permissions, evidence requirements, and approval requirements.
-- SQLite-backed, ordered task events with per-task hash-chain verification.
-- Checkpoints with state-hash verification and recovery from a saved checkpoint plus later events.
-- Deterministic plan checks for prohibited or unapproved action categories, missing dependencies, cycles, uncovered acceptance criteria, and invalidated assumptions.
-- A guarded callback execution gate that validates first and stores an action claim before execution. Duplicate action IDs fail closed; exceptions are marked as an unknown outcome rather than retried automatically.
-- Criterion-level completion audit against current-plan step records and fresh trusted evidence; unresolved action outcomes prevent a completion record.
-- Provider-neutral external outcome reconciliation with durable operation identities, conditional requests, stable idempotency keys, and explicit guarded retries after an authoritative `NOT_APPLIED` observation.
-- Automated unit tests and a runnable end-to-end example.
+| Capability | Current implementation |
+|---|---|
+| **Intent contract** | Typed, versioned goal and policy model; strict JSON serialization; JSON Schema; explicit, versioned contract amendments. |
+| **Deterministic validation** | **ALLOW**, **BLOCK**, and **REVALIDATION_REQUIRED**; checks action categories, required evidence, evidence freshness and resource versions, contract version, and required approvals. |
+| **Plan-drift checks** | Deterministic checks for prohibited or unauthorized action categories, missing dependencies, dependency cycles, uncovered acceptance criteria, and invalidated assumptions. |
+| **Task history** | SQLite-backed ordered events, duplicate-event handling, per-task hash-chain verification, and checkpoint state-hash verification. |
+| **Guarded execution** | A host-owned tool registry and callback gate. The action ID is claimed before execution; duplicate claims fail closed. |
+| **Recovery and context reconstruction** | Restore the active authorized contract, verify checkpoint and event history, replay supported later events, detect invalidated assumptions, and rebuild compact context. |
+| **Completion audit** | Compare acceptance criteria with current-plan step records and host-supplied evidence; unresolved action outcomes prevent a ready completion report. |
+| **External outcome reconciliation (M5)** | Provider-neutral operation records, stable idempotency identity, conditional-version metadata, outcome lookup, and guarded retry after an authoritative **NOT_APPLIED** observation. |
+| **Integration examples** | Runnable validation and long-running-task examples, a local reconciliation demo, a portable agent skill, and a minimal MCP stdio scaffold. |
+| **Engineering checks** | Pytest suite, Ruff, mypy, and GitHub Actions CI configured for Python 3.11, 3.12, and 3.13. |
 
-## What is not yet implemented
-
-- A universal wrapper that intercepts every tool call from arbitrary agents.
-- Full MCP SDK conformance and a second independent agent-framework adapter. A minimal local MCP stdio scaffold is included, but it is not a complete SDK replacement.
-- Model-assisted semantic or trajectory drift detection. The current detector checks structured policy and plan relationships; it does not reliably interpret every natural-language deviation.
-- Qualified live-service reconciliation adapters. The provider-neutral reconciliation coordinator and local failure-injection tests are implemented; each real provider must meet its documented guarantees.
-- Authenticated identity/approval services, multi-tenant deployment, a dashboard, or production operational controls.
-- A Gemma integration. The core remains model-independent; an optional model adapter should be added only behind validated interfaces and evaluated separately.
-- Published benchmarks demonstrating improved drift detection or lower false-positive rates.
-
-## Architecture
-
-```mermaid
-flowchart TD
-    USER[User / authorized request] --> HOST[Trusted host authorizes contract]
-    HOST --> CONTRACT[Versioned Intent Contract]
-    CONTRACT --> ENGINE[Intent Integrity Engine]
-    AGENT[External AI agent] --> PLAN[Proposed plan / action]
-    PLAN --> DRIFT[Deterministic plan-drift checks]
-    CONTRACT --> DRIFT
-    DRIFT --> ENGINE
-    ENGINE --> VALIDATOR[Pre-action validator]
-    TRUSTED[Trusted current evidence and approvals] --> VALIDATOR
-    VALIDATOR -->|BLOCK or REVALIDATION_REQUIRED| STOP[Do not execute]
-    VALIDATOR -->|ALLOW| CLAIM[Durable action claim]
-    CLAIM --> EXEC[Host-supplied executor callback]
-    EXEC --> EVENTS[(SQLite event history)]
-    ENGINE --> EVENTS
-    EVENTS --> CHECKPOINT[Verified checkpoint]
-    CHECKPOINT --> RECOVERY[Recovery and compact context]
-    EVENTS --> RECOVERY
-    RECOVERY --> DRIFT
-    RECOVERY --> AGENT
-```
-
-The diagram describes the implemented runtime scaffold and the integration responsibilities. It does not imply that a generic agent is automatically intercepted. A host must route every consequential tool action through this gate to prevent bypass.
-
-## Runtime flow
-
-1. The host authenticates the user and authorizes an `IntentContract`.
-2. The engine records the authorized contract as a task-start event.
-3. The plan is checked against allowed action categories and acceptance criteria.
-4. Before an action, the validator checks the contract, trusted evidence, evidence freshness/resource versions, and required approvals.
-5. Only `ALLOW` may reach the guarded execution callback. The action ID is claimed durably before the callback runs.
-6. The result or ambiguous outcome is recorded. Reusing the same action ID fails closed.
-7. The host saves a checkpoint containing the contract, plan, completed criteria, verified facts, and decisions.
-8. On recovery, the engine verifies the event chain and checkpoint hash, reloads the checkpoint, restores the active authorized contract, replays later plan/progress/decision events, detects invalidated assumptions, and rebuilds a compact context anchored to the authorized intent.
-9. Before declaring completion, the host supplies current evidence to `engine.complete_task(contract, evidence=..., now=...)`. Only a ready report records `TASK_COMPLETED`; missing criteria, stale evidence, incomplete steps, and unresolved outcomes prevent it.
-
-A validation `ALLOW` means only that the checks represented in the contract passed at validation time. It does not prove an external operation succeeded or the whole task is complete.
-
-## Quick start
-
-Requirements: Python 3.11 or newer and Git if cloning.
-
-```bash
-git clone https://github.com/rumman52/Long-Running.git
-cd Long-Running
-python -m venv .venv
-```
-
-Windows PowerShell:
-
-```powershell
-.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-```
-
-macOS / Linux:
-
-```bash
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-```
-
-Run the original side-effect-free validation example:
-
-```bash
-python examples/basic_validation.py
-```
-
-Run the runtime demonstration:
-
-```bash
-python examples/long_running_task.py
-```
-
-Run the lost-response reconciliation demonstration:
-
-```bash
-python examples/external_reconciliation.py
-```
-
-See [External Outcome Reconciliation](docs/EXTERNAL_RECONCILIATION.md) for provider obligations,
-restart recovery, conditional writes, and retry behavior.
-
-Run tests and quality checks:
-
-```bash
-pytest
-ruff check src tests examples
-mypy src/intent_integrity
-```
-
-The runtime demo uses a local temporary SQLite database and demonstration callbacks. It does not publish a real report or connect to an external service.
+These are implementation claims, not a claim that every integration or production threat has been qualified. The roadmap distinguishes implemented code from work that still needs broader testing or external evidence.
 
 ## Decision meanings
 
-| Decision | Meaning | Required behavior |
+| Decision | Meaning | Expected host behavior |
 |---|---|---|
-| `ALLOW` | All checks represented by the current validator passed. | The trusted host may proceed with execution safeguards. |
-| `BLOCK` | A policy or authorization rule failed. | Do not execute. |
-| `REVALIDATION_REQUIRED` | Evidence or contract state is missing, stale, invalidated, or outdated. | Refresh trusted state and validate again. |
+| **ALLOW** | The checks represented by the validator passed for the supplied state at validation time. | The host may continue through the guarded execution path. |
+| **BLOCK** | A policy or authorization requirement failed. | Do not execute the action. |
+| **REVALIDATION_REQUIRED** | Evidence or contract state is missing, stale, invalidated, or out of date. | Refresh trusted state and validate again before proceeding. |
 
-A block takes precedence over a revalidation warning. Neither missing evidence nor an unknown external outcome grants permission to continue.
+A **BLOCK** takes precedence over a revalidation warning. Missing evidence, missing approval, or an unknown external outcome must never be treated as permission to continue.
 
-## Repository structure
+**Important:** **ALLOW** is not proof that an external operation succeeded, that the evidence source was honest, or that the overall task is complete.
 
-```text
-Long-Running/
-├── .github/workflows/ci.yml
+## Quick start
+
+### Requirements
+
+- Python **3.11 or newer**
+- Git, if cloning the repository
+- Internet access to install the development dependencies
+
+The package has no mandatory third-party runtime dependencies. The **dev** extra installs the test and quality-check tools.
+
+### 1. Clone the repository
+
+~~~bash
+git clone https://github.com/rumman52/Long-Running.git
+cd Long-Running
+~~~
+
+### 2. Create and activate a virtual environment
+
+**Windows PowerShell**
+
+~~~powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+~~~
+
+If PowerShell blocks activation under your machine's execution policy, use the appropriate policy for your environment or activate the environment from Command Prompt instead.
+
+**macOS / Linux**
+
+~~~bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+~~~
+
+### 3. Install the project
+
+~~~bash
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+~~~
+
+### 4. Run the examples
+
+**Basic validation** — validates a sample action without executing it or contacting an external service:
+
+~~~bash
+python examples/basic_validation.py
+~~~
+
+**Long-running task** — demonstrates a local task, a blocked action without approval, assumption invalidation, checkpoint recovery, and a guarded callback:
+
+~~~bash
+python examples/long_running_task.py
+~~~
+
+**External outcome reconciliation** — demonstrates a lost response and outcome recovery using a local provider ledger:
+
+~~~bash
+python examples/external_reconciliation.py
+~~~
+
+**MCP stdio scaffold** — starts a minimal newline-delimited JSON-RPC server. It is intended to be exercised by an MCP-capable client or a test harness, not as a standalone interactive demo:
+
+~~~bash
+python examples/guarded_mcp_server.py
+~~~
+
+The examples use local demonstration callbacks, temporary SQLite databases, or a local provider ledger. They do not publish a real report or qualify a live external service.
+
+## Minimal validation example
+
+This small example demonstrates the core API. It validates a permitted draft action; it does not execute that action.
+
+~~~python
+from datetime import UTC, datetime
+
+from intent_integrity import (
+    ActionRequest,
+    IntentContract,
+    ValidationContext,
+    validate_action,
+)
+
+contract = IntentContract(
+    contract_id="report-task",
+    version=1,
+    goal="Draft a report; do not publish without approval.",
+    permitted_actions=("read_source", "write_report", "publish_report"),
+    prohibited_actions=("delete_source",),
+    consequential_actions=("publish_report",),
+    required_approvals_by_action=(
+        ("publish_report", ("publish-approval",)),
+    ),
+    acceptance_criteria=("Report is accurate",),
+)
+
+context = ValidationContext(
+    now=datetime.now(UTC),
+    evidence={},
+    approvals={},
+    active_contract_version=contract.version,
+)
+
+result = validate_action(
+    contract,
+    ActionRequest(action_id="draft-report", category="write_report"),
+    context,
+)
+
+print(result.decision.value)  # ALLOW
+~~~
+
+For a full lifecycle, use **IntentIntegrityEngine** to record plans, execute guarded callbacks, checkpoint progress, recover after restart, and audit completion. For provider-aware external writes, use **ExternalActionCoordinator** with a provider implementation that satisfies the guarantees in the [reconciliation guide](docs/EXTERNAL_RECONCILIATION.md).
+
+## Run the quality checks
+
+From the activated virtual environment:
+
+~~~bash
+pytest
+ruff check src tests examples
+mypy src/intent_integrity
+~~~
+
+The GitHub Actions workflow runs these checks and the long-running-task and reconciliation examples on pushes, pull requests, and manual dispatch for Python 3.11, 3.12, and 3.13. Check the live [CI workflow](https://github.com/rumman52/Long-Running/actions/workflows/ci.yml) for the current result; this README does not assert that an unobserved run has passed.
+
+## Important safety and integration boundaries
+
+Intent Integrity is a control component, not a complete security perimeter by itself.
+
+- **The host must mediate every consequential tool.** Only registered and correctly routed tools are guarded. Any alternate unguarded route can bypass the checks.
+- **The host owns identity and authorization.** The application must authenticate the user, authorize the initial contract and amendments, and supply trustworthy evidence and approval records. An authorization reference is audit metadata, not a cryptographic signature.
+- **Model output is untrusted input.** A model, document, web page, or tool result must not be allowed to silently amend the active contract, fabricate verified evidence, or grant approval.
+- **Unknown outcomes are not safe to retry blindly.** A callback can fail after an external service has already applied the effect. Reconcile the prior operation before retrying, and preserve the original operation identity.
+- **Provider guarantees matter.** Safe reconciliation requires provider-side atomic idempotency, binding the key to the request, reliable outcome lookup, and enforcement of conditional writes/deadlines. The local tests do not qualify a real provider.
+- **Time-of-check/time-of-use races remain possible.** A resource may change after validation. Use provider-supported conditional operations and resource-version checks at the write boundary.
+- **Hash chains are tamper-evident, not tamper-proof.** Someone able to rewrite the whole database may be able to recompute the chain. Production systems need protected storage, access controls, backups, and potentially externally anchored signatures.
+- **Evidence checks have a defined boundary.** The engine evaluates evidence metadata supplied by the host; it does not independently authenticate every evidence source or prove natural-language claims.
+- **Semantic drift is not solved universally.** Current checks are deterministic and structure-aware. They do not detect every subtle meaning-level deviation in arbitrary natural language.
+
+Read the [threat model](docs/THREAT_MODEL.md), [architecture](docs/ARCHITECTURE.md), and [runtime guide](docs/RUNTIME_GUIDE.md) before connecting tools that can change external systems.
+
+## Current scope and roadmap
+
+Milestones are not considered complete merely because a file or interface exists. The project tracks implementation separately from conformance, integration, and security evidence.
+
+| Milestone | Status | What remains important |
+|---|---|---|
+| **M1 — Intent contract and deterministic validation** | Implemented in the repository | Verify the latest CI result before release. |
+| **M2 — Runtime state, event history, checkpoints** | Initial implementation | Multi-process concurrency qualification, migrations, retention, backup/restore, and access-control guidance. |
+| **M3 — Plan drift and recovery** | Initial deterministic implementation | Broader state-machine and property-based testing, plus independent evaluation. |
+| **M4 — Portable skill and guarded action boundary** | Initial adapter and minimal MCP stdio scaffold | Official MCP conformance, adversarial bypass testing, and a qualified real-host integration. |
+| **M5 — External outcome reconciliation** | Provider-neutral coordinator and local fault-injection tests implemented | Live-provider adapters must be built and qualified against real provider guarantees. |
+| **M6 — Semantic drift and optional Gemma adapter** | Planned | Validated model interface, adversarial tests, and measured precision/recall, false pauses, latency, and token cost. |
+| **M7 — Cross-framework conformance and evaluation** | Planned | Integrate Shuddho and an independent framework; publish comparative metrics and bypass-resistance evidence. |
+| **M8 — Open-source release readiness** | Planned | Maintainer-approved license, contribution/security guidance, supply-chain review, reproducible evaluation, and external review. |
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone acceptance criteria and the current checklist. The project does not claim universal drift detection, production readiness, or independently verified security.
+
+## Repository map
+
+~~~text
+.
+├── .github/workflows/ci.yml       # Automated test and quality checks
 ├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── INTENT_CONTRACT.md
-│   ├── MCP_ADAPTER.md
-│   ├── ROADMAP.md
-│   ├── RUNTIME_GUIDE.md
-│   └── THREAT_MODEL.md
+│   ├── ARCHITECTURE.md            # Components, boundaries, and system flow
+│   ├── EXTERNAL_RECONCILIATION.md # Provider contract, outcomes, and retries
+│   ├── INTENT_CONTRACT.md         # Contract model and authorization rules
+│   ├── MCP_ADAPTER.md             # Guarded tools and MCP stdio scope
+│   ├── ROADMAP.md                 # Milestones and acceptance criteria
+│   ├── RUNTIME_GUIDE.md           # Runtime, recovery, and completion audit
+│   └── THREAT_MODEL.md            # Threats, mitigations, and known gaps
 ├── examples/
 │   ├── basic_validation.py
+│   ├── external_reconciliation.py
 │   ├── guarded_mcp_server.py
 │   └── long_running_task.py
 ├── schemas/intent-contract.schema.json
 ├── skills/intent-integrity/SKILL.md
 ├── src/intent_integrity/
 │   ├── adapter.py
+│   ├── drift.py
 │   ├── engine.py
 │   ├── events.py
 │   ├── mcp_server.py
 │   ├── models.py
+│   ├── reconciliation.py
 │   ├── serialization.py
 │   ├── store.py
-│   ├── validator.py
-│   └── drift.py
-└── tests/
-    ├── test_adapter.py
-    ├── test_mcp_server.py
-    ├── test_serialization.py
-    ├── test_validator.py
-    ├── test_store.py
-    ├── test_drift.py
-    └── test_engine.py
-```
-
-## Security and limitations
-
-- **Trusted boundary required:** if an agent can invoke tools without going through the host's gate, it can bypass validation.
-- **No model authority:** model output, files, web pages, and tool results cannot amend the active contract or manufacture an approval.
-- **Evidence is time-sensitive:** refresh and validate evidence close to execution.
-- **TOCTOU remains possible:** a resource can change after validation but before an external action. Use provider-supported conditional operations, resource-version checks, and idempotency keys.
-- **Ambiguous outcomes fail closed:** an exception after a side effect may mean the provider completed the operation. The action remains `UNKNOWN`; reconcile with the provider before taking any new action. Do not blindly retry with a new ID.
-- **Hash chain is tamper-evident, not tamper-proof:** an attacker able to rewrite the whole database can recompute the chain. Production deployments need protected storage, access control, backups, and potentially externally anchored signatures.
-- **Natural-language constraints need explicit enforcement:** storing a sentence does not make it machine-checkable.
-- **No universal semantic guarantee:** the current detector finds structured plan and event inconsistencies, not every possible meaning-level drift.
-- **Completion relies on host evidence:** the engine checks IDs, freshness and versions but cannot authenticate a host-provided source or prove a natural-language criterion by itself. A completion record does not prove external side effects or production safety.
-
-See [Threat Model](docs/THREAT_MODEL.md) and [Runtime Guide](docs/RUNTIME_GUIDE.md) before integrating with tools that can affect external systems.
-
-## Roadmap
-
-See [docs/ROADMAP.md](docs/ROADMAP.md). Milestones should be marked complete only when acceptance tests and evidence support the claim.
-
-## Guarded tool adapter and MCP demo
-
-The repository includes a reusable host-owned tool registry and a minimal MCP stdio server. Each registered tool has a fixed action category and input schema. Calls obtain the active authorized contract and trusted validation context, then pass through the engine's pre-action gate.
-
-Install and run the local demonstration:
-
-```bash
-python -m pip install -e ".[dev]"
-python examples/guarded_mcp_server.py
-```
-
-The demo uses fake local callbacks and a temporary SQLite database; it does not contact an external service. See [MCP adapter guide](docs/MCP_ADAPTER.md) and the portable [Agent Skill](skills/intent-integrity/SKILL.md).
-
-**Important:** only registered tools are guarded. The host must not expose a parallel unguarded route. The MCP wrapper is a limited stdio scaffold, not a complete MCP SDK replacement. Qualified live-provider adapters, authenticated approval services, real-host integration, semantic drift evaluation, and production security qualification remain incomplete.
+│   └── validator.py
+├── tests/
+└── pyproject.toml
+~~~
 
 ## License
 
-A license has not yet been selected. Until a license file is added, do not assume that this code is licensed for reuse.
+**No LICENSE file is currently present.** Until the maintainer selects and adds a license, do not assume that this repository grants permission to use, modify, distribute, or sublicense the code. License selection is tracked in [M8 of the roadmap](docs/ROADMAP.md).
+
+---
+
+**Project:** [rumman52/Long-Running](https://github.com/rumman52/Long-Running)  
+**Package:** **intent-integrity**  
+**Primary language:** Python  
+**Design goal:** preserve authorized intent through explicit contracts, deterministic checks, durable state, and controlled recovery.
