@@ -45,7 +45,7 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 
 **Status: Initial adapter, portable skill, and minimal MCP stdio scaffold implemented; full conformance and real-host qualification remain.**
 
-- [x] Add an Agent Skills-compatible `SKILL.md` with explicit trust-boundary guidance.
+- [x] Add an Agent Skills-compatible SKILL.md with explicit trust-boundary guidance.
 - [x] Define a host-owned tool registry and adapter protocol for proposals, trusted context, decisions, and results.
 - [x] Add a minimal MCP stdio server for initialization, tool listing, and guarded tool calls.
 - [x] Test that blocked actions do not reach the underlying callback.
@@ -85,13 +85,18 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 
 ## M8 — Open-Source Release Readiness
 
-**Status: Planned.**
+**Status: In review — not complete until maintainer license approval, successful M8 CI, and independent code review.**
 
-- [ ] Select and add an explicit open-source license with maintainer approval.
-- [ ] Add contribution and security reporting guidance.
-- [ ] Review dependencies, supply-chain posture, and supported Python versions.
-- [ ] Publish reproducible demos, limitations, benchmark methodology, and release notes.
-- [ ] Run threat-model review and external code review.
+- [x] Propose Apache-2.0, add a candidate LICENSE, and declare SPDX license metadata on the M8 branch.
+- [ ] Maintainer explicitly approves the license and confirms authority to license all included material before merge.
+- [x] Add contribution guidance, pull-request review checklist, and responsible vulnerability-reporting guidance.
+- [x] Review runtime/development dependencies; add scheduled pip-audit and Dependabot updates; document the current lack of a pinned lockfile and immutable action SHA pins.
+- [x] Define supported Python CI targets (3.11–3.14) and a best-effort Python 3.15 compatibility job.
+- [x] Publish reproducible demo instructions, known limitations, benchmark methodology, release-readiness gates, and a changelog.
+- [x] Expand the threat model to cover trust boundaries, supply-chain risks, bypasses, residual risks, and required security tests.
+- [ ] Verify the M8 branch CI and dependency audit pass.
+- [ ] Obtain and record an independent external code/security review; no such review has been completed yet.
+- [ ] Publish a tagged release only after all release gates are satisfied.
 
 ## Definition of done
 
