@@ -333,7 +333,8 @@ class IntentIntegrityEngine:
             return self._blocking_drift_report(
                 contract,
                 "NO_ACTIVE_PLAN",
-                "No plan has been recorded for this task; record and validate a plan before acting.",
+                "No plan has been recorded for this task; "
+                "record and validate a plan before acting.",
             )
 
         plan_event = events[latest_plan_index].event
@@ -393,7 +394,8 @@ class IntentIntegrityEngine:
             return self._blocking_drift_report(
                 contract,
                 "PLAN_REVALIDATION_REQUIRED",
-                "An assumption was revalidated after the latest plan; record a new plan before acting.",
+                "An assumption was revalidated after the latest plan; "
+                "record a new plan before acting.",
             )
 
         return detect_plan_drift(
@@ -474,7 +476,9 @@ class IntentIntegrityEngine:
     ) -> ValidationResult:
         """Validate policy and active-plan drift, then append the combined decision."""
         if not self.store.verify_event_chain(contract.contract_id):
-            raise EventIntegrityError("Refusing action validation because the event chain is invalid")
+            raise EventIntegrityError(
+                "Refusing action validation because the event chain is invalid"
+            )
         events = self.store.list_events(contract.contract_id)
         result = validate_proposed_action(contract, action, context)
         plan_report = self._latest_plan_drift(contract, events)
