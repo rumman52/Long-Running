@@ -1,6 +1,6 @@
 """Minimal, side-effect-free example of intent integrity validation."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 from intent_integrity import (
     ActionRequest,
