@@ -45,4 +45,4 @@ The maintainer may request a smaller change, additional tests, or a design note.
 
 ## Licensing and contributions
 
-The proposed project license is Apache-2.0 in the open-source readiness change and requires explicit maintainer approval before it is adopted. Do not submit code unless you have the right to contribute it and can accept the license terms that apply when the contribution is accepted. No Contributor License Agreement is currently established; do not assume one exists.
+Contributions accepted into the project are subject to the project license in [LICENSE](LICENSE). Do not submit code unless you have the right to contribute it and can accept those terms. No Contributor License Agreement is currently established; do not assume one exists.
