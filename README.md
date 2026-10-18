@@ -11,7 +11,7 @@ It turns important parts of that goal into a **versioned intent contract**, chec
 
 **The core principle is simple: the agent may propose an action; trusted code decides whether that action is allowed to proceed.**
 
-> **Project maturity:** Early-stage engineering implementation. M5 reconciliation and M6's optional advisory semantic comparator are implemented with local tests; live Gemma measurements remain pending. M7 adds a Shuddho async consumer bridge, optional LangGraph ToolNode integration, adapter conformance tests, and a reproducible comparison harness. The bridge is not yet wired into the deployed Shuddho runtime. See the [implementation roadmap](docs/ROADMAP.md) for evidence-based status.
+> **Project maturity:** Early-stage engineering implementation. M2 now includes versioned SQLite schema migration, backup/restore helpers, and multi-process regression tests; M3 includes generated state/event tests; M4 includes an official MCP Python SDK smoke test. M5 reconciliation and M6's optional advisory semantic comparator have local tests, while live provider/model measurements remain pending. M7 adds a Shuddho async consumer bridge, optional LangGraph ToolNode integration, adapter conformance tests, and a reproducible comparison harness. The bridge is not yet wired into the deployed Shuddho runtime. M8 release materials are proposed, with license approval and external review still required. See the [implementation roadmap](docs/ROADMAP.md) for evidence-based status.
 
 ---
 
@@ -23,7 +23,10 @@ It turns important parts of that goal into a **versioned intent contract**, chec
 - **Integrating an agent or tool?** Read [the runtime guide](docs/RUNTIME_GUIDE.md) and [guarded adapter guide](docs/MCP_ADAPTER.md).
 - **Handling timeouts or duplicate external effects?** Read [external outcome reconciliation](docs/EXTERNAL_RECONCILIATION.md).
 - **Evaluating semantic drift?** Read [the optional semantic comparator guide](docs/SEMANTIC_DRIFT.md).
-- **Reviewing security boundaries?** Read [the threat model](docs/THREAT_MODEL.md).
+- **Reviewing security boundaries?** Read [the threat model](docs/THREAT_MODEL.md) and [security policy](SECURITY.md).
+- **Checking benchmarks?** Read [benchmark methodology](docs/BENCHMARKS.md) and [cross-framework evaluation](docs/CROSS_FRAMEWORK_CONFORMANCE.md).
+- **Operating persistence?** Read [backup, restore, retention, and access control](docs/OPERATIONS.md).
+- **Checking release readiness?** Read [the release-readiness audit](docs/RELEASE_READINESS.md).
 - **Checking what is complete?** Read [the roadmap](docs/ROADMAP.md).
 
 ## The problem
@@ -88,16 +91,16 @@ The diagram shows the intended integration boundary. It does **not** mean that a
 | **Intent contract** | Typed, versioned goal and policy model; strict JSON serialization; JSON Schema; explicit, versioned contract amendments. |
 | **Deterministic validation** | **ALLOW**, **BLOCK**, and **REVALIDATION_REQUIRED**; checks action categories, required evidence, evidence freshness and resource versions, contract version, and required approvals. |
 | **Plan-drift checks** | Deterministic checks for prohibited or unauthorized action categories, missing dependencies, dependency cycles, uncovered acceptance criteria, and invalidated assumptions. |
-| **Task history** | SQLite-backed ordered events, duplicate-event handling, per-task hash-chain verification, and checkpoint state-hash verification. |
+| **Task history** | SQLite-backed ordered events, duplicate-event handling, per-task hash-chain verification, checkpoint hashes, versioned schema migrations, and multi-process regression tests. |
 | **Guarded execution** | A host-owned tool registry and callback gate. The action ID is claimed before execution; duplicate claims fail closed. |
 | **Recovery and context reconstruction** | Restore the active authorized contract, verify checkpoint and event history, replay supported later events, detect invalidated assumptions, and rebuild compact context. |
 | **Completion audit** | Compare acceptance criteria with current-plan step records and host-supplied evidence; unresolved action outcomes prevent a ready completion report. |
 | **Semantic drift (M6)** | Optional provider-neutral semantic comparison with a Gemma/Ollama adapter, strict output validation, advisory-only findings, and a labelled evaluation harness. Live Gemma accuracy has not yet been measured. |
 | **External outcome reconciliation (M5)** | Provider-neutral operation records, stable idempotency identity, conditional-version metadata, outcome lookup, and guarded retry after an authoritative **NOT_APPLIED** observation. |
-| **Integration examples** | Runnable validation and long-running-task examples, a local reconciliation demo, a portable agent skill, and a minimal MCP stdio scaffold. |
+| **Integration examples** | Runnable validation, long-running-task, and reconciliation demos; MCP stdio; official MCP SDK smoke test; LangGraph ToolNode adapter; and a Shuddho async consumer bridge. |
 | **Cross-framework adapters (M7)** | Optional LangGraph ToolNode adapter and Shuddho bridge for non-consequential async tools; live Shuddho runtime wiring remains pending. |
 | **Evaluation (M7)** | Reproducible unmonitored/deterministic/hybrid comparison with safety, recovery, latency, token-usage, and adapter-surface bypass metrics. Fixture mode is synthetic. |
-| **Engineering checks** | Pytest suite, Ruff, mypy, and GitHub Actions CI configured for Python 3.11, 3.12, and 3.13. |
+| **Engineering checks** | Pytest, Hypothesis property tests, Ruff, mypy, official MCP SDK interoperability, Python 3.11–3.14 CI, and a best-effort Python 3.15 job. |
 
 These are implementation claims, not a claim that every integration or production threat has been qualified. The roadmap distinguishes implemented code from work that still needs broader testing or external evidence.
 
@@ -301,13 +304,13 @@ Milestones are not considered complete merely because a file or interface exists
 | Milestone | Status | What remains important |
 |---|---|---|
 | **M1 — Intent contract and deterministic validation** | Implemented in the repository | Verify the latest CI result before release. |
-| **M2 — Runtime state, event history, checkpoints** | Initial implementation | Multi-process concurrency qualification, migrations, retention, backup/restore, and access-control guidance. |
-| **M3 — Plan drift and recovery** | Initial deterministic implementation | Broader state-machine and property-based testing, plus independent evaluation. |
-| **M4 — Portable skill and guarded action boundary** | Initial adapter and minimal MCP stdio scaffold | Official MCP conformance, adversarial bypass testing, and a qualified real-host integration. |
+| **M2 — Runtime state, event history, checkpoints** | Implementation and tests added on this branch | Schema versioning, multi-process event/claim tests, backup/restore helpers, and operational retention/access-control guidance; target-deployment load tests remain. |
+| **M3 — Plan drift and recovery** | Deterministic implementation plus property-based tests | Independent recovery evaluation remains. |
+| **M4 — Portable skill and guarded action boundary** | Official MCP SDK smoke test added | Full MCP conformance, adversarial bypass testing, and a qualified real-host integration remain. |
 | **M5 — External outcome reconciliation** | Provider-neutral coordinator and local fault-injection tests implemented | Live-provider adapters must be built and qualified against real provider guarantees. |
 | **M6 — Semantic drift and optional Gemma adapter** | Initial implementation and evaluation harness added | Live Gemma measurements on an expanded, independently labelled dataset remain pending. |
 | **M7 — Cross-framework conformance and evaluation** | Adapter-level implementation and synthetic evaluation added | Live Shuddho runtime wiring and a reviewed model-backed hybrid run remain pending. |
-| **M8 — Open-source release readiness** | Planned | Maintainer-approved license, contribution/security guidance, supply-chain review, reproducible evaluation, and external review. |
+| **M8 — Open-source release readiness** | Release materials proposed; approval pending | Maintainer approval of Apache-2.0, external code/security review, and release gates remain. |
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone acceptance criteria and the current checklist. The project does not claim universal drift detection, production readiness, or independently verified security.
 
@@ -315,16 +318,21 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone acceptance criteria and the
 
 ~~~text
 .
-├── .github/workflows/ci.yml       # Automated test and quality checks
+├── .github/workflows/ci.yml       # Automated test, conformance, and quality checks
+├── .github/workflows/security.yml  # Scheduled dependency vulnerability audit
+├── .github/dependabot.yml          # Weekly Python and Actions updates
 ├── docs/
 │   ├── ARCHITECTURE.md            # Components, boundaries, and system flow
+│   ├── BENCHMARKS.md               # Evaluation design and metric definitions
 │   ├── EXTERNAL_RECONCILIATION.md # Provider contract, outcomes, and retries
 │   ├── INTENT_CONTRACT.md         # Contract model and authorization rules
 │   ├── MCP_ADAPTER.md             # Guarded tools and MCP stdio scope
+│   ├── OPERATIONS.md              # Persistence, backup, restore, retention
+│   ├── RELEASE_READINESS.md       # Open-source release gates
+│   ├── REPRODUCIBLE_DEMOS.md      # Clean-checkout demo instructions
 │   ├── ROADMAP.md                 # Milestones and acceptance criteria
 │   ├── RUNTIME_GUIDE.md
 │   ├── SEMANTIC_DRIFT.md           # Optional semantic comparator and evaluation
-│   └── THREAT_MODEL.md             # Threats, mitigations, and known gaps           # Runtime, recovery, and completion audit
 │   └── THREAT_MODEL.md            # Threats, mitigations, and known gaps
 ├── benchmarks/
 │   └── semantic_drift_cases.json
@@ -355,7 +363,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone acceptance criteria and the
 
 ## License
 
-**No LICENSE file is currently present.** Until the maintainer selects and adds a license, do not assume that this repository grants permission to use, modify, distribute, or sublicense the code. License selection is tracked in [M8 of the roadmap](docs/ROADMAP.md).
+This branch proposes the Apache License 2.0; see [LICENSE](LICENSE). The maintainer must explicitly approve the license choice and confirm authority to license all included material before merging. Until that approval and merge occur, the default branch's licensing state has not changed.
 
 ---
 

@@ -11,13 +11,13 @@ Preserve the host-authorized user goal across long-running agent work and preven
 | Intent contract and schema | Versioned goal, constraints, allowed/prohibited actions, evidence and approval requirements, assumptions, acceptance criteria | Implemented |
 | Deterministic validator | Returns ALLOW, BLOCK, or REVALIDATION_REQUIRED from trusted inputs | Implemented |
 | Event model | Typed task events for plans, validation, action attempts, invalidation, and checkpoints | Implemented |
-| SQLite event store | Per-task sequence, idempotent event append, hash-chain verification, checkpoint storage, action claims | Implemented initial adapter |
+| SQLite event store | Per-task sequence, idempotent event append, hash-chain verification, checkpoint storage, action claims, schema versioning, online backup/restore | Implemented; deployment-scale qualification remains |
 | Plan-drift detector | Checks action categories, dependency graph, acceptance-criteria coverage, invalidated assumptions, selected event patterns | Implemented deterministic checks |
 | Runtime engine | Connects plan checks, validation, event persistence, guarded callback execution, checkpoint and recovery | Implemented scaffold |
 | Compact context builder | Reconstructs the original goal, constraints, progress, verified facts, decisions, and recent events | Implemented |
 | Trusted host and identity | Authenticates user, authorizes initial contract and amendments, provides trustworthy evidence/approval records | Integration responsibility |
-| Agent action adapter | Intercepts every controlled tool call and maps provider state into trusted validation inputs | Not yet implemented |
-| Optional semantic comparator | Provider-neutral structured comparison; optional Gemma/Ollama adapter; strict output validation and advisory findings | Implemented as opt-in utility; not wired into validator decisions |
+| Agent action adapter | Host-owned registry routes registered calls through deterministic validation and durable claims | Implemented scaffold; every host must prove full mediation |
+| Optional semantic comparator | Provider-neutral structured comparison; optional Gemma/Ollama adapter; strict output validation and advisory findings | Implemented as opt-in utility; live model measurements pending |
 | External outcome reconciler | Persists provider operations, looks up ambiguous outcomes, and guards retries with stable keys and version conditions | Provider-neutral implementation and local fault-injection tests; live adapters need qualification |
 | Evaluation suite | Measures semantic precision/recall, false-pause and missed-drift rates, latency, and token overhead | Starter labelled dataset and harness implemented; live Gemma run pending |
 
@@ -112,3 +112,10 @@ The hash chain is tamper-evident, not tamper-proof. Production use needs databas
 ## Known gaps
 
 No universal agent interception, qualified live-provider adapter, production identity layer, or production-qualified benchmark suite exists yet. The optional semantic comparator has a starter labelled dataset but has not been measured against a live Gemma model here. Provider-neutral external reconciliation is implemented; see [External Outcome Reconciliation](EXTERNAL_RECONCILIATION.md) for its trusted provider requirements and limits. Do not treat this scaffold as a production security guarantee.
+
+
+## Operational and cross-framework status
+
+The SQLite store now uses an ordered schema-version marker and provides consistent online backup and verified restore helpers. Property-based tests exercise generated event sequences and invalid terminal action transitions; separate multi-process tests exercise event ordering and duplicate claims. See the operations guide for retention, access-control, and restore requirements.
+
+The official MCP Python SDK smoke test checks a supported protocol subset. The optional LangGraph adapter and Shuddho consumer bridge are tested against local/fake handlers. These checks do not prove full MCP conformance, live Shuddho deployment wiring, or that every host tool path is guarded.

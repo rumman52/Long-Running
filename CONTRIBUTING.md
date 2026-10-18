@@ -19,7 +19,7 @@ Requires Python 3.11 or newer and Git.
     python examples/basic_validation.py
     python examples/long_running_task.py
     pytest
-    ruff check src tests examples
+    ruff check src tests examples benchmarks
     mypy src/intent_integrity
 
 The demos use local temporary state and fake callbacks. They must not perform real external side effects.

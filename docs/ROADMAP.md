@@ -14,7 +14,7 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 
 ## M2 — Runtime State, Event History, and Checkpoints
 
-**Status: Initial implementation added; CI and integration qualification required.**
+**Status: Versioned persistence and operational helpers added; CI and deployment qualification required.**
 
 - [x] Versioned typed event model.
 - [x] Pin the authorized contract in event history and require explicit versioned amendments.
@@ -23,8 +23,10 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 - [x] Durable action claims with fail-closed duplicate prevention.
 - [x] UNKNOWN outcome state after callback exceptions.
 - [x] Tests for event idempotency, hash checks, checkpoints, and action claims.
-- [ ] Prove concurrency behavior across multiple processes and SQLite connections.
-- [ ] Add migrations, retention policy, operational backup/restore, and database access-control guidance.
+- [x] Add independent-process event-append and duplicate-action-claim race tests.
+- [x] Add SQLite schema versioning, an idempotent legacy bootstrap, and an ordered version migration.
+- [x] Add online backup and verified restore helpers, plus documented retention and access-control guidance.
+- [ ] Run load, crash-recovery, and restore drills on the intended deployment filesystem and concurrency profile.
 
 ## M3 — Plan Drift and Recovery
 
@@ -38,7 +40,7 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 - [x] Require a persisted, current plan before guarded actions; block malformed, stale, or drifted plans.
 - [x] Record host-confirmed assumption revalidation and require a fresh plan afterward.
 - [x] Tests for plan drift and recovery.
-- [ ] Add state-machine/property-based tests for illegal transitions and event sequences.
+- [x] Add Hypothesis-generated event-sequence, duplicate-claim, and terminal-state transition tests.
 - [x] Add a completion verifier that maps each acceptance criterion to host-supplied evidence from current-plan step records, with freshness checks and unresolved-outcome blocking.
 
 ## M4 — Portable Agent Skill and Controlled Action Boundary
@@ -50,9 +52,10 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 - [x] Add a minimal MCP stdio server for initialization, tool listing, and guarded tool calls.
 - [x] Test that blocked actions do not reach the underlying callback.
 - [x] Add malformed-input, unknown-tool, duplicate-claim, and adapter-failure tests.
-- [ ] Validate full MCP conformance with the official SDK and supported clients.
+- [x] Add an official MCP Python SDK smoke test for initialization, tool listing, allowed draft, and blocked publish.
+- [ ] Validate the full MCP conformance suite with supported production clients.
 - [ ] Add adversarial bypass and prompt-injection evaluation against a real agent host.
-- [ ] Integrate and qualify at least one independent agent framework.
+- [x] Add and test an optional LangGraph ToolNode adapter; see M7 for the live-host qualification gate.
 
 ## M5 — External Outcome Reconciliation
 
@@ -94,14 +97,19 @@ without provider metadata remain fail closed. These local tests do not qualify a
 
 ## M8 — Open-Source Release Readiness
 
-**Status: Planned.**
+**Status: Release materials proposed; maintainer approval and external review remain required.**
 
-- [ ] Select and add an explicit open-source license with maintainer approval.
-- [ ] Add contribution and security reporting guidance.
-- [ ] Review dependencies, supply-chain posture, and supported Python versions.
-- [ ] Publish reproducible demos, limitations, benchmark methodology, and release notes.
-- [ ] Run threat-model review and external code review.
+- [x] Propose Apache-2.0 and add SPDX license metadata; maintainer approval is still pending.
+- [x] Add contribution guidance, a pull-request review checklist, and responsible vulnerability-reporting guidance.
+- [x] Add scheduled pip-audit and Dependabot updates for Python dependencies and GitHub Actions.
+- [x] Document supported Python 3.11–3.14 CI targets and a best-effort Python 3.15 job.
+- [x] Publish reproducible demo instructions, benchmark methodology, release-readiness gates, and a changelog.
+- [x] Expand the threat model with trust boundaries, bypass risks, residual risks, and required security tests.
+- [ ] Verify the complete release branch CI and dependency audit pass after the latest changes.
+- [ ] Obtain explicit maintainer approval for the license and confirm contributor rights before merge.
+- [ ] Obtain and record independent external code/security review; none is claimed complete.
+- [ ] Publish a tagged release only after all release gates are satisfied.
 
 ## Definition of done
 
-A release must provide reproducible install/run instructions, passing CI, meaningful test coverage for its advertised behavior, documented limitations, and evidence for security claims. “Universal drift detection” and “production-ready” are not acceptable claims until measured and independently reviewed.
+A release must provide reproducible install/run instructions, passing CI, meaningful test coverage for its advertised behavior, documented limitations, and evidence for security claims. Python 3.15 is best-effort only until it is a supported upstream release and remains green. “Universal drift detection” and “production-ready” are not acceptable claims until measured and independently reviewed.
