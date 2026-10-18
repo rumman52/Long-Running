@@ -25,6 +25,9 @@ def make_contract(**overrides: object) -> IntentContract:
         "constraints": ("Do not merge if the source changes after testing",),
         "permitted_actions": ("merge_pull_request", "run_tests"),
         "prohibited_actions": ("delete_repository",),
+        "consequential_actions": ("merge_pull_request",),
+        "required_evidence_by_action": (("merge_pull_request", ("tests",)),),
+        "required_approvals_by_action": (("merge_pull_request", ("review",)),),
         "assumptions": (),
         "required_approvals": (),
         "acceptance_criteria": ("Required checks pass",),
@@ -37,9 +40,6 @@ def make_action(**overrides: object) -> ActionRequest:
     values: dict[str, object] = {
         "action_id": "action-001",
         "category": "merge_pull_request",
-        "consequential": True,
-        "required_evidence_ids": ("tests",),
-        "required_approval_ids": ("review",),
     }
     values.update(overrides)
     return ActionRequest(**values)  # type: ignore[arg-type]
@@ -253,10 +253,18 @@ def test_contract_required_approval_applies_to_consequential_action() -> None:
     assert result.decision == Decision.ALLOW
 
 
-def test_non_consequential_action_does_not_require_contract_level_approval() -> None:
-    contract = make_contract(required_approvals=("security-review",))
-    action = make_action(consequential=False, required_approval_ids=())
-    result = validate_action(contract, action, make_context(approvals={}))
+def test_contract_level_approval_does_not_apply_to_non_consequential_category() -> None:
+    contract = make_contract(
+        required_approvals=("security-review",),
+        consequential_actions=(),
+        required_evidence_by_action=(),
+        required_approvals_by_action=(),
+    )
+    result = validate_action(
+        contract,
+        make_action(category="run_tests"),
+        make_context(evidence={}, approvals={}),
+    )
     assert result.decision == Decision.ALLOW
 
 
@@ -300,3 +308,14 @@ def test_future_evidence_timestamp_requires_revalidation() -> None:
     )
     assert result.decision == Decision.REVALIDATION_REQUIRED
     assert "EVIDENCE_TIMESTAMP_IN_FUTURE" in result.reason_codes
+
+
+def test_action_request_cannot_disable_contract_approval_policy() -> None:
+    contract = make_contract(required_approvals=("security-review",))
+    result = validate_action(
+        contract,
+        ActionRequest(action_id="action-002", category="merge_pull_request"),
+        make_context(approvals={"review": make_context().approvals["review"]}),
+    )
+    assert result.decision == Decision.BLOCK
+    assert "APPROVAL_MISSING" in result.reason_codes
