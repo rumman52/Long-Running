@@ -88,7 +88,7 @@ class MCPStdioServer:
                 "result": {
                     "content": [{
                         "type": "text",
-                        "text": json.dumps(result.to_dict(), ensure_ascii=False, separators=(",", ":")),
+                        "text": json.dumps(\n                            result.to_dict(), ensure_ascii=False, separators=(",", ":")\n                        ),
                     }],
                     "isError": is_error,
                 },

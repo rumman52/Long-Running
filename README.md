@@ -4,7 +4,7 @@
 
 An agent can begin with a correct plan and later forget a constraint, use stale evidence, follow instructions found in an untrusted file, repeat an external action after a timeout, or claim completion without proof. This project adds a trusted intent contract and runtime checks around the agent. The model may propose actions; trusted code decides whether those actions may proceed.
 
-> **Status:** The repository contains an implemented deterministic validator plus an initial runnable runtime scaffold: SQLite event history, hash-chain verification, checkpoints, structural plan-drift checks, compact context reconstruction, and fail-closed action claims. CI results for the latest branch and real external-agent integration must be verified separately. This is an early engineering implementation, not a production security certification or universal semantic drift detector.
+> **Status:** The repository contains the deterministic validation core, SQLite event history, hash-chain verification, checkpoints, structural plan-drift checks, compact context reconstruction, guarded tool registry, and a minimal MCP stdio scaffold. Automated tests and CI run on each change. This is an early engineering implementation, not a production security certification or universal semantic drift detector.
 
 ## What is implemented
 
@@ -135,22 +135,29 @@ Long-Running/
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── INTENT_CONTRACT.md
+│   ├── MCP_ADAPTER.md
 │   ├── ROADMAP.md
 │   ├── RUNTIME_GUIDE.md
 │   └── THREAT_MODEL.md
 ├── examples/
 │   ├── basic_validation.py
+│   ├── guarded_mcp_server.py
 │   └── long_running_task.py
 ├── schemas/intent-contract.schema.json
+├── skills/intent-integrity/SKILL.md
 ├── src/intent_integrity/
+│   ├── adapter.py
+│   ├── engine.py
+│   ├── events.py
+│   ├── mcp_server.py
 │   ├── models.py
 │   ├── serialization.py
-│   ├── validator.py
-│   ├── events.py
 │   ├── store.py
-│   ├── drift.py
-│   └── engine.py
+│   ├── validator.py
+│   └── drift.py
 └── tests/
+    ├── test_adapter.py
+    ├── test_mcp_server.py
     ├── test_serialization.py
     ├── test_validator.py
     ├── test_store.py
