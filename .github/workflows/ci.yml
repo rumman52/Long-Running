@@ -34,3 +34,6 @@ jobs:
 
       - name: Run Ruff
         run: ruff check src tests examples
+
+      - name: Run mypy
+        run: mypy src/intent_integrity
