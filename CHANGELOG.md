@@ -2,9 +2,17 @@
 
 All notable changes to Intent Integrity are recorded here. This project has not published a GitHub release as of the M8 readiness review.
 
-## Unreleased — M8 open-source readiness proposal
+## Unreleased — M2–M8 integration and release-readiness baseline
 
 ### Added
+- Versioned SQLite schema migrations, process-concurrency tests, and verified online backup/restore operations.
+- Persistence operations guidance for retention decisions, filesystem permissions, backups, restores, and integrity incidents.
+- Bounded property-based tests for event chains, terminal action states, and duplicate action claims.
+- Official MCP Python SDK smoke-conformance tests and an optional LangGraph ToolNode adapter.
+- Reproducible M7 evaluation harness and synthetic CI artifacts.
+- Apache-2.0 license candidate, contribution/security guidance, dependency audit workflow, and Dependabot updates.
+- Verified commit-SHA pins for GitHub Actions.
+
 - Apache-2.0 license and SPDX package metadata, subject to maintainer approval of the M8 change.
 - Contribution guidance and a responsible security-reporting process.
 - Dependency auditing workflow and scheduled Dependabot updates for Python dependencies and GitHub Actions.
