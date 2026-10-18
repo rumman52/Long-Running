@@ -21,14 +21,14 @@ contract = IntentContract(
     goal="Merge the reviewed pull request only if tests still match the current commit.",
     permitted_actions=("merge_pull_request", "run_tests"),
     prohibited_actions=("delete_repository",),
-    required_approvals=("review-approval",),
+    consequential_actions=("merge_pull_request",),
+    required_evidence_by_action=(("merge_pull_request", ("ci-tests",)),),
+    required_approvals_by_action=(("merge_pull_request", ("review-approval",)),),
 )
 
 action = ActionRequest(
     action_id="merge-pr-42-step-3",
     category="merge_pull_request",
-    consequential=True,
-    required_evidence_ids=("ci-tests",),
 )
 
 evidence = Evidence(
