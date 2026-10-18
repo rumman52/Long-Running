@@ -33,6 +33,8 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 - [x] Detect missing dependencies, cycles, and acceptance-criteria gaps.
 - [x] Recover from a checkpoint and replay events after its sequence.
 - [x] Rebuild compact context anchored to the original contract and verified progress.
+- [x] Require a persisted, current plan before guarded actions; block malformed, stale, or drifted plans.
+- [x] Record host-confirmed assumption revalidation and require a fresh plan afterward.
 - [x] Tests for plan drift and recovery.
 - [ ] Add state-machine/property-based tests for illegal transitions and event sequences.
 - [ ] Add a completion verifier that maps each acceptance criterion to trusted evidence.

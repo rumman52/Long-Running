@@ -7,7 +7,13 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from intent_integrity.drift import DriftReport, PlanStep, detect_plan_drift
+from intent_integrity.drift import (
+    DriftReport,
+    DriftSeverity,
+    DriftSignal,
+    PlanStep,
+    detect_plan_drift,
+)
 from intent_integrity.events import (
     ActionStatus,
     CheckpointRecord,
@@ -277,12 +283,169 @@ class IntentIntegrityEngine:
             {"contract": contract_to_dict(contract), "contract_version": contract.version},
         )
 
+    def _active_invalidated_assumptions(
+        self, events: Iterable[StoredEvent]
+    ) -> tuple[str, ...]:
+        """Compute assumption state from invalidation and trusted revalidation events."""
+        invalidated: set[str] = set()
+        for stored in events:
+            event = stored.event
+            assumption_id = event.payload.get("assumption_id")
+            if not isinstance(assumption_id, str):
+                continue
+            if event.event_type == EventType.ASSUMPTION_INVALIDATED:
+                invalidated.add(assumption_id)
+            elif (
+                event.event_type == EventType.ASSUMPTION_REVALIDATED
+                and event.payload.get("verified") is True
+            ):
+                invalidated.discard(assumption_id)
+        return tuple(sorted(invalidated))
+
+    @staticmethod
+    def _blocking_drift_report(
+        contract: IntentContract, code: str, message: str
+    ) -> DriftReport:
+        """Build a fail-closed drift report for malformed or outdated plan state."""
+        return DriftReport(
+            contract_id=contract.contract_id,
+            contract_version=contract.version,
+            signals=(
+                DriftSignal(
+                    code=code,
+                    severity=DriftSeverity.BLOCKING,
+                    message=message,
+                ),
+            ),
+        )
+
+    def _latest_plan_drift(
+        self, contract: IntentContract, events: tuple[StoredEvent, ...]
+    ) -> DriftReport:
+        """Revalidate the persisted plan and current assumption state before execution."""
+        plan_indexes = [
+            index
+            for index, stored in enumerate(events)
+            if stored.event.event_type == EventType.PLAN_RECORDED
+        ]
+        latest_plan_index = plan_indexes[-1] if plan_indexes else None
+        if latest_plan_index is None:
+            return self._blocking_drift_report(
+                contract,
+                "NO_ACTIVE_PLAN",
+                "No plan has been recorded for this task; record and validate a plan before acting.",
+            )
+
+        plan_event = events[latest_plan_index].event
+        plan_version = plan_event.payload.get("contract_version")
+        if type(plan_version) is not int or plan_version != contract.version:
+            return self._blocking_drift_report(
+                contract,
+                "PLAN_CONTRACT_VERSION_MISMATCH",
+                "The latest plan was recorded against a different contract version.",
+            )
+        raw_steps = plan_event.payload.get("steps")
+        if not isinstance(raw_steps, list):
+            return self._blocking_drift_report(
+                contract, "ACTIVE_PLAN_MALFORMED", "The latest stored plan is malformed."
+            )
+        plan: list[PlanStep] = []
+        for index, raw_step in enumerate(raw_steps):
+            if not isinstance(raw_step, dict):
+                return self._blocking_drift_report(
+                    contract,
+                    "ACTIVE_PLAN_MALFORMED",
+                    f"Stored plan step {index} is not an object.",
+                )
+            step_id = raw_step.get("step_id")
+            description = raw_step.get("description")
+            action_category = raw_step.get("action_category")
+            criteria = raw_step.get("acceptance_criteria", [])
+            dependencies = raw_step.get("dependencies", [])
+            if (
+                not isinstance(step_id, str)
+                or not isinstance(description, str)
+                or not isinstance(action_category, str)
+                or not isinstance(criteria, list)
+                or any(not isinstance(item, str) for item in criteria)
+                or not isinstance(dependencies, list)
+                or any(not isinstance(item, str) for item in dependencies)
+            ):
+                return self._blocking_drift_report(
+                    contract,
+                    "ACTIVE_PLAN_MALFORMED",
+                    f"Stored plan step {index} contains invalid fields.",
+                )
+            plan.append(
+                PlanStep(
+                    step_id=step_id,
+                    description=description,
+                    action_category=action_category,
+                    acceptance_criteria=tuple(criteria),
+                    dependencies=tuple(dependencies),
+                )
+            )
+
+        if any(
+            stored.event.event_type == EventType.ASSUMPTION_REVALIDATED
+            for stored in events[latest_plan_index + 1 :]
+        ):
+            return self._blocking_drift_report(
+                contract,
+                "PLAN_REVALIDATION_REQUIRED",
+                "An assumption was revalidated after the latest plan; record a new plan before acting.",
+            )
+
+        return detect_plan_drift(
+            contract,
+            plan,
+            invalidated_assumptions=self._active_invalidated_assumptions(events),
+        )
+
+    def revalidate_assumption(
+        self,
+        contract: IntentContract,
+        assumption_id: str,
+        evidence_ids: Iterable[str],
+    ) -> StoredEvent:
+        """Record host-confirmed revalidation; call only after trusted evidence is checked."""
+        assumption = next(
+            (item for item in contract.assumptions if item.assumption_id == assumption_id),
+            None,
+        )
+        if assumption is None:
+            raise ValueError(f"Unknown assumption: {assumption_id!r}")
+        verified_ids = tuple(dict.fromkeys(evidence_ids))
+        if not verified_ids or any(not item.strip() for item in verified_ids):
+            raise ValueError("Revalidation requires at least one non-empty verified evidence ID")
+        if not set(assumption.evidence_ids).issubset(verified_ids):
+            raise ValueError("All evidence IDs declared by the assumption must be revalidated")
+        if not self.store.verify_event_chain(contract.contract_id):
+            raise EventIntegrityError("Refusing revalidation because the event chain is invalid")
+        return self.record_event(
+            contract.contract_id,
+            EventType.ASSUMPTION_REVALIDATED,
+            {
+                "assumption_id": assumption_id,
+                "evidence_ids": list(verified_ids),
+                "verified": True,
+                "contract_version": contract.version,
+            },
+        )
+
     def record_plan(
         self, contract: IntentContract, plan: Iterable[PlanStep]
     ) -> DriftReport:
-        """Record a plan and return deterministic drift findings before execution."""
+        """Record a plan and return drift findings, including currently invalid assumptions."""
+        if not self.store.verify_event_chain(contract.contract_id):
+            raise EventIntegrityError("Refusing to record a plan with an invalid event chain")
         plan_steps = tuple(plan)
-        report = detect_plan_drift(contract, plan_steps)
+        prior_events = self.store.list_events(contract.contract_id)
+        report = detect_plan_drift(
+            contract,
+            plan_steps,
+            invalidated_assumptions=self._active_invalidated_assumptions(prior_events),
+        )
         self.record_event(
             contract.contract_id,
             EventType.PLAN_RECORDED,
@@ -309,8 +472,33 @@ class IntentIntegrityEngine:
         action: ActionRequest,
         context: ValidationContext,
     ) -> ValidationResult:
-        """Validate and append the decision to the task history."""
+        """Validate policy and active-plan drift, then append the combined decision."""
+        if not self.store.verify_event_chain(contract.contract_id):
+            raise EventIntegrityError("Refusing action validation because the event chain is invalid")
+        events = self.store.list_events(contract.contract_id)
         result = validate_proposed_action(contract, action, context)
+        plan_report = self._latest_plan_drift(contract, events)
+        if plan_report.has_blocking_drift:
+            blocking_signals = [
+                signal for signal in plan_report.signals
+                if signal.severity == DriftSeverity.BLOCKING
+            ]
+            result = ValidationResult(
+                decision=Decision.BLOCK,
+                reason_codes=tuple(
+                    dict.fromkeys(
+                        (*result.reason_codes, "PLAN_DRIFT_BLOCKING",
+                         *(signal.code for signal in blocking_signals))
+                    )
+                ),
+                details=tuple(
+                    (*result.details, *(signal.message for signal in blocking_signals))
+                ),
+                checked_at=result.checked_at,
+                action_id=result.action_id,
+                contract_id=result.contract_id,
+                contract_version=result.contract_version,
+            )
         self.record_event(
             contract.contract_id,
             EventType.ACTION_VALIDATED,
@@ -413,14 +601,9 @@ class IntentIntegrityEngine:
         if checkpoint is None:
             raise ValueError(f"No checkpoint exists for task {task_id!r}")
         state = CheckpointState.from_dict(checkpoint.state)
+        all_events = self.store.list_events(task_id)
         replay_events = self.store.list_events(task_id, after_sequence=checkpoint.sequence)
-        invalidated = tuple(
-            assumption_id
-            for item in replay_events
-            if item.event.event_type == EventType.ASSUMPTION_INVALIDATED
-            for assumption_id in [item.event.payload.get("assumption_id")]
-            if isinstance(assumption_id, str)
-        )
+        invalidated = self._active_invalidated_assumptions(all_events)
         report = detect_plan_drift(
             state.contract,
             state.plan,

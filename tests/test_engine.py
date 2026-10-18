@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -46,11 +47,72 @@ def make_context(*, approvals: dict[str, Approval] | None = None) -> ValidationC
     )
 
 
+def test_no_active_plan_blocks_execution() -> None:
+    contract = make_contract()
+    with SQLiteEventStore(":memory:") as store:
+        engine = IntentIntegrityEngine(store, clock=lambda: NOW)
+        engine.start_task(contract)
+        calls: list[str] = []
+        result = engine.guarded_execute(
+            contract,
+            ActionRequest("without-plan", "write_report"),
+            make_context(),
+            lambda: calls.append("should-not-run"),
+        )
+        assert result.validation.decision == Decision.BLOCK
+        assert "NO_ACTIVE_PLAN" in result.validation.reason_codes
+        assert calls == []
+
+
+def test_stale_plan_blocks_execution_after_contract_version_change() -> None:
+    contract = make_contract()
+    clean_plan = (
+        PlanStep(
+            "draft",
+            "Draft report from verified source data",
+            "write_report",
+            acceptance_criteria=("Report is accurate",),
+        ),
+    )
+    with SQLiteEventStore(":memory:") as store:
+        engine = IntentIntegrityEngine(store, clock=lambda: NOW)
+        engine.start_task(contract)
+        engine.record_plan(contract, clean_plan)
+        updated_contract = replace(contract, version=2)
+        calls: list[str] = []
+        context = ValidationContext(
+            now=NOW,
+            evidence={},
+            approvals={},
+            active_contract_version=2,
+        )
+        result = engine.guarded_execute(
+            updated_contract,
+            ActionRequest("stale-plan", "write_report"),
+            context,
+            lambda: calls.append("should-not-run"),
+        )
+        assert result.validation.decision == Decision.BLOCK
+        assert "PLAN_CONTRACT_VERSION_MISMATCH" in result.validation.reason_codes
+        assert calls == []
+
+
 def test_guarded_execute_never_calls_executor_when_blocked() -> None:
     contract = make_contract()
     with SQLiteEventStore(":memory:") as store:
         engine = IntentIntegrityEngine(store, clock=lambda: NOW)
         engine.start_task(contract)
+        engine.record_plan(
+            contract,
+            (
+                PlanStep(
+                    "draft",
+                    "Draft report from verified source data",
+                    "write_report",
+                    acceptance_criteria=("Report is accurate",),
+                ),
+            ),
+        )
         calls: list[str] = []
         result = engine.guarded_execute(
             contract,
@@ -97,6 +159,17 @@ def test_executor_exception_is_unknown_and_not_retried() -> None:
     with SQLiteEventStore(":memory:") as store:
         engine = IntentIntegrityEngine(store, clock=lambda: NOW)
         engine.start_task(contract)
+        engine.record_plan(
+            contract,
+            (
+                PlanStep(
+                    "draft",
+                    "Draft report from verified source data",
+                    "write_report",
+                    acceptance_criteria=("Report is accurate",),
+                ),
+            ),
+        )
         action = ActionRequest("write-timeout", "write_report")
 
         def timeout() -> object:
@@ -146,6 +219,105 @@ def test_checkpoint_recovery_preserves_intent_and_detects_drift() -> None:
         assert "original_goal" in recovered.compact_context
         assert "Do not publish without approval" in recovered.compact_context
         assert len(recovered.replay_events) >= 2
+
+
+
+def test_blocking_plan_drift_prevents_execution_until_a_clean_plan_is_recorded() -> None:
+    contract = make_contract()
+    with SQLiteEventStore(":memory:") as store:
+        engine = IntentIntegrityEngine(store, clock=lambda: NOW)
+        engine.start_task(contract)
+        bad_plan = (
+            PlanStep("unsafe", "Delete source material", "delete_source"),
+        )
+        report = engine.record_plan(contract, bad_plan)
+        assert report.has_blocking_drift
+
+        calls: list[str] = []
+        blocked = engine.guarded_execute(
+            contract,
+            ActionRequest("write-blocked", "write_report"),
+            make_context(),
+            lambda: calls.append("should-not-run"),
+        )
+        assert blocked.validation.decision == Decision.BLOCK
+        assert "PLAN_DRIFT_BLOCKING" in blocked.validation.reason_codes
+        assert calls == []
+
+        clean_plan = (
+            PlanStep(
+                "draft",
+                "Draft report from verified source data",
+                "write_report",
+                acceptance_criteria=("Report is accurate",),
+            ),
+        )
+        clean_report = engine.record_plan(contract, clean_plan)
+        assert not clean_report.has_blocking_drift
+        allowed = engine.guarded_execute(
+            contract,
+            ActionRequest("write-after-replan", "write_report"),
+            make_context(),
+            lambda: calls.append("ran"),
+        )
+        assert allowed.validation.decision == Decision.ALLOW
+        assert allowed.executed
+        assert calls == ["ran"]
+
+
+def test_assumption_revalidation_requires_a_new_plan_before_actions() -> None:
+    contract = make_contract()
+    clean_plan = (
+        PlanStep(
+            "draft",
+            "Draft report from verified source data",
+            "write_report",
+            acceptance_criteria=("Report is accurate",),
+        ),
+    )
+    with SQLiteEventStore(":memory:") as store:
+        engine = IntentIntegrityEngine(store, clock=lambda: NOW)
+        engine.start_task(contract)
+        engine.record_plan(contract, clean_plan)
+        engine.record_event(
+            contract.contract_id,
+            EventType.ASSUMPTION_INVALIDATED,
+            {"assumption_id": "source-current", "reason": "source version changed"},
+        )
+
+        calls: list[str] = []
+        invalidated = engine.guarded_execute(
+            contract,
+            ActionRequest("write-during-invalidation", "write_report"),
+            make_context(),
+            lambda: calls.append("invalid"),
+        )
+        assert invalidated.validation.decision == Decision.BLOCK
+        assert calls == []
+
+        engine.revalidate_assumption(
+            contract, "source-current", evidence_ids=("fresh-source-snapshot",)
+        )
+        before_replan = engine.guarded_execute(
+            contract,
+            ActionRequest("write-before-replan", "write_report"),
+            make_context(),
+            lambda: calls.append("before-replan"),
+        )
+        assert before_replan.validation.decision == Decision.BLOCK
+        assert "PLAN_REVALIDATION_REQUIRED" in before_replan.validation.reason_codes
+        assert calls == []
+
+        engine.record_plan(contract, clean_plan)
+        after_replan = engine.guarded_execute(
+            contract,
+            ActionRequest("write-after-revalidation", "write_report"),
+            make_context(),
+            lambda: calls.append("after-replan"),
+        )
+        assert after_replan.validation.decision == Decision.ALLOW
+        assert after_replan.executed
+        assert calls == ["after-replan"]
 
 
 def test_checkpoint_rejects_unverified_facts() -> None:

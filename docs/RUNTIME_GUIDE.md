@@ -91,7 +91,25 @@ After restart, call `engine.recover(task_id)`. Recovery:
 
 A recovery bundle can report blocking drift. The host must stop or replan when blocking drift exists; this scaffold does not autonomously choose a new authorized goal.
 
-## 6. Operational cautions
+## 6. Assumption and plan revalidation
+
+If a trusted source changes or an assumption becomes false, record an `ASSUMPTION_INVALIDATED` event. The engine will block guarded actions while that assumption remains invalidated.
+
+After checking fresh evidence outside the model, the trusted host may call:
+
+```python
+engine.revalidate_assumption(
+    contract,
+    assumption_id="source-current",
+    evidence_ids=("fresh-source-snapshot",),
+)
+```
+
+Call this method only after the host has independently verified the evidence. It records the host's attestation; it does not fetch or verify the source itself. The engine then requires a new plan to be recorded before guarded actions resume. That plan is checked again against the current contract and acceptance criteria.
+
+An invalid plan, a plan recorded against an old contract version, a missing plan, or a plan made stale by assumption revalidation blocks execution. A new plan can clear plan-structure drift, but it cannot clear an invalidated assumption until the host records trusted revalidation.
+
+## 7. Operational cautions
 
 - All consequential actions must be routed through a trusted action boundary.
 - The SQLite adapter is a starter implementation; validate concurrent writers and crash behavior before production use.

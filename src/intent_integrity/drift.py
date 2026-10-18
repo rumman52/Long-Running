@@ -207,19 +207,20 @@ def detect_plan_drift(
                 f"An event references unknown assumption {assumption_id!r}.",
             )
 
+    event_invalidated: set[str] = set()
     for stored in events:
         event = stored.event
         if event.event_type == EventType.ASSUMPTION_INVALIDATED:
             event_assumption_id = event.payload.get("assumption_id")
+            if isinstance(event_assumption_id, str) and event_assumption_id in assumption_ids:
+                event_invalidated.add(event_assumption_id)
+        elif event.event_type == EventType.ASSUMPTION_REVALIDATED:
+            event_assumption_id = event.payload.get("assumption_id")
             if (
-                isinstance(event_assumption_id, str)
-                and event_assumption_id in assumption_ids
+                event.payload.get("verified") is True
+                and isinstance(event_assumption_id, str)
             ):
-                add(
-                    "ASSUMPTION_INVALIDATED",
-                    DriftSeverity.BLOCKING,
-                    f"Assumption {event_assumption_id!r} was invalidated in the event history.",
-                )
+                event_invalidated.discard(event_assumption_id)
         elif event.event_type == EventType.ACTION_VALIDATED:
             category = event.payload.get("category")
             decision = event.payload.get("decision")
@@ -238,5 +239,12 @@ def detect_plan_drift(
                     DriftSeverity.WARNING,
                     f"An action was validated with decision {decision!r}.",
                 )
+
+    for event_assumption_id in sorted(event_invalidated - invalidated):
+        add(
+            "ASSUMPTION_INVALIDATED",
+            DriftSeverity.BLOCKING,
+            f"Assumption {event_assumption_id!r} remains invalidated in the event history.",
+        )
 
     return DriftReport(contract.contract_id, contract.version, tuple(signals))
