@@ -43,13 +43,16 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 
 ## M4 — Portable Agent Skill and Controlled Action Boundary
 
-**Status: Planned.**
+**Status: Initial adapter, portable skill, and minimal MCP stdio scaffold implemented; full conformance and real-host qualification remain.**
 
-- [ ] Publish an Agent Skills-compatible package and manifest.
-- [ ] Define a stable adapter protocol for action proposals, trusted context, validation decisions, and results.
-- [ ] Implement an MCP-facing adapter that mediates consequential tool calls.
-- [ ] Prove blocked actions do not reach the underlying tool.
-- [ ] Add bypass, prompt-injection, malformed-input, and adapter-failure tests.
+- [x] Add an Agent Skills-compatible `SKILL.md` with explicit trust-boundary guidance.
+- [x] Define a host-owned tool registry and adapter protocol for proposals, trusted context, decisions, and results.
+- [x] Add a minimal MCP stdio server for initialization, tool listing, and guarded tool calls.
+- [x] Test that blocked actions do not reach the underlying callback.
+- [x] Add malformed-input, unknown-tool, duplicate-claim, and adapter-failure tests.
+- [ ] Validate full MCP conformance with the official SDK and supported clients.
+- [ ] Add adversarial bypass and prompt-injection evaluation against a real agent host.
+- [ ] Integrate and qualify at least one independent agent framework.
 
 ## M5 — External Outcome Reconciliation
 

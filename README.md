@@ -4,7 +4,7 @@
 
 An agent can begin with a correct plan and later forget a constraint, use stale evidence, follow instructions found in an untrusted file, repeat an external action after a timeout, or claim completion without proof. This project adds a trusted intent contract and runtime checks around the agent. The model may propose actions; trusted code decides whether those actions may proceed.
 
-> **Status:** The repository contains an implemented deterministic validator plus an initial runnable runtime scaffold: SQLite event history, hash-chain verification, checkpoints, structural plan-drift checks, compact context reconstruction, and fail-closed action claims. CI results for the latest branch and real external-agent integration must be verified separately. This is an early engineering implementation, not a production security certification or universal semantic drift detector.
+> **Status:** The repository contains the deterministic validation core, SQLite event history, hash-chain verification, checkpoints, structural plan-drift checks, compact context reconstruction, guarded tool registry, and a minimal MCP stdio scaffold. Automated tests and CI run on each change. This is an early engineering implementation, not a production security certification or universal semantic drift detector.
 
 ## What is implemented
 
@@ -22,7 +22,7 @@ An agent can begin with a correct plan and later forget a constraint, use stale 
 ## What is not yet implemented
 
 - A universal wrapper that intercepts every tool call from arbitrary agents.
-- A production MCP adapter or a second independent agent-framework adapter.
+- Full MCP SDK conformance and a second independent agent-framework adapter. A minimal local MCP stdio scaffold is included, but it is not a complete SDK replacement.
 - Model-assisted semantic or trajectory drift detection. The current detector checks structured policy and plan relationships; it does not reliably interpret every natural-language deviation.
 - Automatic verification of external side effects or provider-specific reconciliation after ambiguous outcomes.
 - Authenticated identity/approval services, multi-tenant deployment, a dashboard, or production operational controls.
@@ -135,22 +135,29 @@ Long-Running/
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── INTENT_CONTRACT.md
+│   ├── MCP_ADAPTER.md
 │   ├── ROADMAP.md
 │   ├── RUNTIME_GUIDE.md
 │   └── THREAT_MODEL.md
 ├── examples/
 │   ├── basic_validation.py
+│   ├── guarded_mcp_server.py
 │   └── long_running_task.py
 ├── schemas/intent-contract.schema.json
+├── skills/intent-integrity/SKILL.md
 ├── src/intent_integrity/
+│   ├── adapter.py
+│   ├── engine.py
+│   ├── events.py
+│   ├── mcp_server.py
 │   ├── models.py
 │   ├── serialization.py
-│   ├── validator.py
-│   ├── events.py
 │   ├── store.py
-│   ├── drift.py
-│   └── engine.py
+│   ├── validator.py
+│   └── drift.py
 └── tests/
+    ├── test_adapter.py
+    ├── test_mcp_server.py
     ├── test_serialization.py
     ├── test_validator.py
     ├── test_store.py
@@ -174,6 +181,21 @@ See [Threat Model](docs/THREAT_MODEL.md) and [Runtime Guide](docs/RUNTIME_GUIDE.
 ## Roadmap
 
 See [docs/ROADMAP.md](docs/ROADMAP.md). Milestones should be marked complete only when acceptance tests and evidence support the claim.
+
+## Guarded tool adapter and MCP demo
+
+The repository includes a reusable host-owned tool registry and a minimal MCP stdio server. Each registered tool has a fixed action category and input schema. Calls obtain the active authorized contract and trusted validation context, then pass through the engine's pre-action gate.
+
+Install and run the local demonstration:
+
+```bash
+python -m pip install -e ".[dev]"
+python examples/guarded_mcp_server.py
+```
+
+The demo uses fake local callbacks and a temporary SQLite database; it does not contact an external service. See [MCP adapter guide](docs/MCP_ADAPTER.md) and the portable [Agent Skill](skills/intent-integrity/SKILL.md).
+
+**Important:** only registered tools are guarded. The host must not expose a parallel unguarded route. The MCP wrapper is a limited stdio scaffold, not a complete MCP SDK replacement. Provider-specific reconciliation, authenticated approval services, real-host integration, semantic drift evaluation, and production security qualification remain incomplete.
 
 ## License
 
