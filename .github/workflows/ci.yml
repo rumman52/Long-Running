@@ -72,8 +72,8 @@ jobs:
         with:
           name: m7-evaluation
           path: |
-            \${{ runner.temp }}/m7-evaluation.json
-            \${{ runner.temp }}/m7-evaluation.md
+            ${{ runner.temp }}/m7-evaluation.json
+            ${{ runner.temp }}/m7-evaluation.md
 
   langgraph-conformance:
     runs-on: ubuntu-latest

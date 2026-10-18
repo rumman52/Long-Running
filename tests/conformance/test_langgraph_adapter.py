@@ -85,7 +85,13 @@ def _invoke_tool_node(tool_node: object, tool_name: str, args: dict[str, object]
             {"name": tool_name, "args": args, "id": call_id, "type": "tool_call"}
         ],
     )
-    return tool_node.invoke({"messages": [message]})
+    from langgraph.graph import END, START, MessagesState, StateGraph
+
+    graph = StateGraph(MessagesState)
+    graph.add_node("tools", tool_node)
+    graph.add_edge(START, "tools")
+    graph.add_edge("tools", END)
+    return graph.compile().invoke({"messages": [message]})
 
 
 def test_langgraph_tool_node_uses_guard_and_blocks_duplicate_action() -> None:
