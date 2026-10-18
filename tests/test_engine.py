@@ -512,3 +512,22 @@ def test_recovery_uses_amended_contract_and_requires_a_current_plan() -> None:
         assert recovered_current.state.contract.version == 2
         assert recovered_current.state.plan == updated_plan
         assert not recovered_current.drift_report.has_blocking_drift
+
+
+
+def test_step_completion_requires_all_criteria_and_evidence() -> None:
+    contract = make_contract()
+    plan = (
+        PlanStep(
+            "draft",
+            "Draft report from verified source data",
+            "write_report",
+            acceptance_criteria=("Report is accurate",),
+        ),
+    )
+    with SQLiteEventStore(":memory:") as store:
+        engine = IntentIntegrityEngine(store, clock=lambda: NOW)
+        engine.start_task(contract)
+        engine.record_plan(contract, plan)
+        with pytest.raises(ValueError, match="All step acceptance criteria"):
+            engine.record_step_completed(contract, "draft")

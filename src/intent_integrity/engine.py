@@ -632,6 +632,10 @@ class IntentIntegrityEngine:
         verified_evidence_ids = tuple(dict.fromkeys(raw_evidence_ids))
         if not set(criteria).issubset(step.acceptance_criteria):
             raise ValueError("Completed criteria must belong to the selected plan step")
+        if not set(step.acceptance_criteria).issubset(criteria):
+            raise ValueError(
+                "All step acceptance criteria must be verified before marking the step complete"
+            )
         if not set(criteria).issubset(contract.acceptance_criteria):
             raise ValueError("Completed criteria must belong to the active contract")
         if criteria and not verified_evidence_ids:
@@ -919,6 +923,7 @@ class IntentIntegrityEngine:
                 if (
                     step is None
                     or not set(criteria).issubset(step.acceptance_criteria)
+                    or not set(step.acceptance_criteria).issubset(criteria)
                     or not set(criteria).issubset(active_contract.acceptance_criteria)
                     or (criteria and not raw_evidence_ids)
                 ):
