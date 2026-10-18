@@ -69,15 +69,20 @@ class ToolCallResult:
 def _validate_value(value: object, schema: Mapping[str, object], path: str) -> list[str]:
     """Validate the documented, intentionally limited JSON Schema subset."""
     expected = schema.get("type")
-    valid = {
-        "object": isinstance(value, dict),
-        "array": isinstance(value, list),
-        "string": isinstance(value, str),
-        "integer": type(value) is int,
-        "number": isinstance(value, (int, float)) and type(value) is not bool,
-        "boolean": type(value) is bool,
-        "null": value is None,
-    }.get(expected, expected is None)
+    if expected is None:
+        valid = True
+    elif not isinstance(expected, str):
+        return [f"{path}: schema type must be a string"]
+    else:
+        valid = {
+            "object": isinstance(value, dict),
+            "array": isinstance(value, list),
+            "string": isinstance(value, str),
+            "integer": type(value) is int,
+            "number": isinstance(value, (int, float)) and type(value) is not bool,
+            "boolean": type(value) is bool,
+            "null": value is None,
+        }.get(expected, False)
     if not valid:
         return [f"{path}: expected {expected}, got {type(value).__name__}"]
     errors: list[str] = []
