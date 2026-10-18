@@ -32,6 +32,9 @@ jobs:
       - name: Run tests
         run: pytest
 
+      - name: Run runtime example
+        run: python examples/long_running_task.py
+
       - name: Run Ruff
         run: ruff check src tests examples
 

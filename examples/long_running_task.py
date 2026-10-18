@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 from intent_integrity import (
     ActionRequest,
     Approval,
+    Assumption,
     ApprovalStatus,
     CheckpointState,
     EventType,
@@ -24,6 +25,13 @@ def main() -> None:
         contract_id="example-report-task",
         version=1,
         goal="Prepare an accurate report; do not publish until the user approves it.",
+        assumptions=(
+            Assumption(
+                "source-current",
+                "The source data remains current",
+                evidence_ids=("source-snapshot",),
+            ),
+        ),
         constraints=("Keep the report within the requested scope",),
         permitted_actions=("read_source", "write_report", "publish_report"),
         prohibited_actions=("delete_source",),
@@ -92,6 +100,12 @@ def main() -> None:
             print("Recovered goal:", recovered.state.contract.goal)
             print("Blocking drift found:", recovered.drift_report.has_blocking_drift)
             print("Compact context characters:", len(recovered.compact_context))
+
+            # In a real host, verify this evidence with its source before recording revalidation.
+            engine.revalidate_assumption(
+                contract, "source-current", evidence_ids=("source-snapshot",)
+            )
+            engine.record_plan(contract, plan)
 
             approved = Approval(
                 "publish-approval",
