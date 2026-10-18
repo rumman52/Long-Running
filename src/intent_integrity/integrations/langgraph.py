@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable, Mapping
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from intent_integrity.adapter import GuardedToolAdapter, ToolDefinition
 
@@ -20,7 +20,7 @@ def _build_args_model(definition: ToolDefinition) -> Any:
     constructs fail during setup instead of being silently weakened for the framework.
     """
     try:
-        from pydantic import (  # type: ignore[import-not-found]
+        from pydantic import (
             ConfigDict,
             Field,
             StrictBool,
@@ -29,6 +29,9 @@ def _build_args_model(definition: ToolDefinition) -> Any:
             StrictStr,
             create_model,
         )
+        # JSON Schema fields are assembled dynamically; Pydantic's static overloads
+        # cannot express the runtime field mapping built below.
+        create_model_dynamic = cast(Any, create_model)
     except ImportError as exc:
         raise ImportError(
             "LangGraph integration requires the optional dependency: "
@@ -97,7 +100,7 @@ def _build_args_model(definition: ToolDefinition) -> Any:
                 if child_name not in nested_required:
                     child_type = child_type | None
                 nested_fields[child_name] = (child_type, default)
-            return create_model(
+            return create_model_dynamic(
                 re.sub(r"[^A-Za-z0-9_]", "_", f"{definition.name}_{field_name}"),
                 __config__=ConfigDict(extra="forbid", strict=True),
                 **nested_fields,
