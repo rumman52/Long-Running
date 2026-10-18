@@ -1,6 +1,6 @@
 """Minimal, side-effect-free example of intent integrity validation."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from intent_integrity import (
     ActionRequest,
@@ -13,7 +13,7 @@ from intent_integrity import (
 )
 
 
-now = datetime.now(timezone.utc)
+now = datetime.now(UTC)
 
 contract = IntentContract(
     contract_id="merge-pr-42",
