@@ -5,10 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
-from typing import Any, Mapping
+from typing import Any
 from uuid import uuid4
 
 from intent_integrity.events import (

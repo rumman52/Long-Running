@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Callable, Iterable, Mapping
 
 from intent_integrity.drift import DriftReport, PlanStep, detect_plan_drift
 from intent_integrity.events import (
