@@ -5,7 +5,7 @@ All notable changes to Intent Integrity are recorded here. This project has not 
 ## Unreleased — M8 open-source readiness proposal
 
 ### Added
-- Proposed Apache-2.0 license, pending explicit maintainer approval.
+- Apache-2.0 license and SPDX package metadata, subject to maintainer approval of the M8 change.
 - Contribution guidance and a responsible security-reporting process.
 - Dependency auditing workflow and scheduled Dependabot updates for Python dependencies and GitHub Actions.
 - Reproducible demo instructions, benchmark methodology, and a release-readiness checklist.
