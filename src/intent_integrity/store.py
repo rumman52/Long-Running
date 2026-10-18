@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import time
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -84,8 +85,21 @@ class SQLiteEventStore:
         self._connection.execute("PRAGMA foreign_keys = ON")
         self._connection.execute("PRAGMA busy_timeout = 10000")
         if self.path != ":memory:":
-            self._connection.execute("PRAGMA journal_mode = WAL")
-        self._initialize_schema()
+            deadline = time.monotonic() + 10.0
+            while True:
+                try:
+                    self._connection.execute("PRAGMA journal_mode = WAL")
+                    break
+                except sqlite3.OperationalError as exc:
+                    if "locked" not in str(exc).casefold() or time.monotonic() >= deadline:
+                        self._connection.close()
+                        raise
+                    time.sleep(0.025)
+        try:
+            self._initialize_schema()
+        except Exception:
+            self._connection.close()
+            raise
 
     def _initialize_schema(self) -> None:
         """Bootstrap legacy databases and apply ordered, idempotent migrations."""

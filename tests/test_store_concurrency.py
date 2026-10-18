@@ -38,6 +38,8 @@ def _claim_once(database: str) -> str:
 
 def test_parallel_processes_append_contiguous_verified_event_chain(tmp_path) -> None:
     database = str(tmp_path / "concurrent.sqlite3")
+    with SQLiteEventStore(database):
+        pass
     workers = 4
     events_per_worker = 8
     with ProcessPoolExecutor(max_workers=workers, mp_context=get_context("spawn")) as pool:
@@ -59,6 +61,8 @@ def test_parallel_processes_append_contiguous_verified_event_chain(tmp_path) -> 
 
 def test_parallel_processes_cannot_claim_the_same_action_twice(tmp_path) -> None:
     database = str(tmp_path / "claims.sqlite3")
+    with SQLiteEventStore(database):
+        pass
     with ProcessPoolExecutor(max_workers=6, mp_context=get_context("spawn")) as pool:
         outcomes = list(pool.map(_claim_once, [database] * 6))
     assert outcomes.count("claimed") == 1
