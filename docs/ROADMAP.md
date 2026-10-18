@@ -14,7 +14,7 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 
 ## M2 — Runtime State, Event History, and Checkpoints
 
-**Status: Initial implementation added; CI and integration qualification required.**
+**Status: Core persistence implementation and operational guidance added; deployment-specific qualification remains.**
 
 - [x] Versioned typed event model.
 - [x] Pin the authorized contract in event history and require explicit versioned amendments.
@@ -23,12 +23,14 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 - [x] Durable action claims with fail-closed duplicate prevention.
 - [x] UNKNOWN outcome state after callback exceptions.
 - [x] Tests for event idempotency, hash checks, checkpoints, and action claims.
-- [ ] Prove concurrency behavior across multiple processes and SQLite connections.
-- [ ] Add migrations, retention policy, operational backup/restore, and database access-control guidance.
+- [x] Test event appends and duplicate action claims across multiple processes and SQLite connections (`tests/test_store_concurrency.py`).
+- [x] Add versioned schema migrations and migration tests.
+- [x] Add verified online backup/restore operations and tests.
+- [x] Document retention policy, filesystem access controls, backup handling, and operational checks in [Persistence Operations](PERSISTENCE_OPERATIONS.md). The library deliberately does not prune hash-chained event rows automatically.
 
 ## M3 — Plan Drift and Recovery
 
-**Status: Initial deterministic implementation added; broader evaluation required.**
+**Status: Deterministic recovery and bounded property-based tests implemented; broader runtime evaluation remains.**
 
 - [x] Detect unauthorized plan actions and invalidated assumptions.
 - [x] Detect missing dependencies, cycles, and acceptance-criteria gaps.
@@ -38,21 +40,21 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 - [x] Require a persisted, current plan before guarded actions; block malformed, stale, or drifted plans.
 - [x] Record host-confirmed assumption revalidation and require a fresh plan afterward.
 - [x] Tests for plan drift and recovery.
-- [ ] Add state-machine/property-based tests for illegal transitions and event sequences.
+- [x] Add bounded property-based tests for generated event sequences, hash-chain integrity, terminal action-state transitions, and duplicate claims (`tests/test_state_properties.py`).
 - [x] Add a completion verifier that maps each acceptance criterion to host-supplied evidence from current-plan step records, with freshness checks and unresolved-outcome blocking.
 
 ## M4 — Portable Agent Skill and Controlled Action Boundary
 
-**Status: Initial adapter, portable skill, and minimal MCP stdio scaffold implemented; full conformance and real-host qualification remain.**
+**Status: Adapter, portable skill, MCP stdio scaffold, official-SDK smoke conformance, and LangGraph ToolNode adapter implemented; real-host adversarial qualification remains.**
 
 - [x] Add an Agent Skills-compatible `SKILL.md` with explicit trust-boundary guidance.
 - [x] Define a host-owned tool registry and adapter protocol for proposals, trusted context, decisions, and results.
 - [x] Add a minimal MCP stdio server for initialization, tool listing, and guarded tool calls.
 - [x] Test that blocked actions do not reach the underlying callback.
 - [x] Add malformed-input, unknown-tool, duplicate-claim, and adapter-failure tests.
-- [ ] Validate full MCP conformance with the official SDK and supported clients.
+- [x] Exercise initialize, tool listing, allowed invocation, and blocked invocation through the official MCP Python SDK (`tests/test_mcp_sdk_conformance.py`). Full protocol conformance across supported clients remains unclaimed.
 - [ ] Add adversarial bypass and prompt-injection evaluation against a real agent host.
-- [ ] Integrate and qualify at least one independent agent framework.
+- [x] Add an optional LangGraph ToolNode adapter and execute conformance tests through a compiled ToolNode. A live LLM and broader framework/version matrix are not qualified.
 
 ## M5 — External Outcome Reconciliation
 
@@ -94,13 +96,16 @@ without provider metadata remain fail closed. These local tests do not qualify a
 
 ## M8 — Open-Source Release Readiness
 
-**Status: Planned.**
+**Status: Release-readiness baseline implemented on the integration branch; license sign-off, independent review, and release publication remain.**
 
-- [ ] Select and add an explicit open-source license with maintainer approval.
-- [ ] Add contribution and security reporting guidance.
-- [ ] Review dependencies, supply-chain posture, and supported Python versions.
-- [ ] Publish reproducible demos, limitations, benchmark methodology, and release notes.
-- [ ] Run threat-model review and external code review.
+- [x] Add an Apache-2.0 license candidate and matching package metadata.
+- [ ] Obtain explicit maintainer approval of the license choice before release.
+- [x] Add contribution guidance and a private-first security reporting policy in `CONTRIBUTING.md` and `SECURITY.md`.
+- [x] Review the dependency set, add `pip-audit` CI and Dependabot updates, and define Python 3.11–3.14 as supported with 3.15 best-effort. The current supply-chain review still notes that dependency locking and immutable SHA pins for Actions are not yet implemented.
+- [x] Document runnable demos, limitations, benchmark methodology, and unreleased changes in the README, evaluation guide, and `CHANGELOG.md`.
+- [x] Document a maintainer threat-model review and unresolved risks in `docs/THREAT_MODEL.md`.
+- [ ] Obtain an independent external code/security review.
+- [ ] Publish a versioned release after CI passes, license sign-off, and independent review.
 
 ## Definition of done
 
