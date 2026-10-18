@@ -50,7 +50,11 @@ def test_generated_terminal_action_states_cannot_transition(
         store.claim_action("state-task", "action-1", "write_report", datetime.now(UTC))
         store.finish_action("state-task", "action-1", initial, result)
         store.finish_action("state-task", "action-1", initial, result)
-        other = ActionStatus.UNKNOWN if initial == ActionStatus.SUCCEEDED else ActionStatus.SUCCEEDED
+        other = (
+            ActionStatus.UNKNOWN
+            if initial == ActionStatus.SUCCEEDED
+            else ActionStatus.SUCCEEDED
+        )
         with pytest.raises(ActionStateError):
             store.finish_action("state-task", "action-1", other, result)
 
