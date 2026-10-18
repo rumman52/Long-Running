@@ -17,9 +17,9 @@ Preserve the host-authorized user goal across long-running agent work and preven
 | Compact context builder | Reconstructs the original goal, constraints, progress, verified facts, decisions, and recent events | Implemented |
 | Trusted host and identity | Authenticates user, authorizes initial contract and amendments, provides trustworthy evidence/approval records | Integration responsibility |
 | Agent action adapter | Intercepts every controlled tool call and maps provider state into trusted validation inputs | Not yet implemented |
-| Semantic/trajectory model | Optional model-assisted analysis for subtler natural-language drift | Not yet implemented |
+| Optional semantic comparator | Provider-neutral structured comparison; optional Gemma/Ollama adapter; strict output validation and advisory findings | Implemented as opt-in utility; not wired into validator decisions |
 | External outcome reconciler | Persists provider operations, looks up ambiguous outcomes, and guards retries with stable keys and version conditions | Provider-neutral implementation and local fault-injection tests; live adapters need qualification |
-| Evaluation suite | Measures detection, false alarms, recovery, task success, bypass resistance, and overhead | Initial unit tests only |
+| Evaluation suite | Measures semantic precision/recall, false-pause and missed-drift rates, latency, and token overhead | Starter labelled dataset and harness implemented; live Gemma run pending |
 
 ## System flow
 
@@ -71,7 +71,7 @@ Evidence and approval state must be populated by authenticated integration code.
 1. **Deterministic policy checks:** implemented in the validator. Rejects prohibited or non-allowlisted action categories, missing/invalid approvals, stale or invalidated evidence, and contract-version mismatch.
 2. **Plan-structure checks:** implemented in the drift detector. Finds unauthorized categories, missing dependencies, dependency cycles, unknown criteria, uncovered criteria, and invalidated assumptions.
 3. **Event-trajectory checks:** initial deterministic rules inspect recorded invalidations and action-validation events.
-4. **Semantic drift:** not implemented. Future model-assisted analysis can compare proposed plan summaries with the contract, but must produce advisory signals only; trusted deterministic code and human authorization remain in control.
+4. **Semantic drift:** an optional provider-neutral comparator can compare the contract and plan using Gemma through Ollama. Its raw output is schema-validated and grounded to supplied text; findings are advisory only. It is not called by the deterministic validator and cannot grant permission, amend intent, or change an action decision. Live model measurements remain pending.
 
 ## Recovery semantics
 
@@ -111,7 +111,4 @@ The hash chain is tamper-evident, not tamper-proof. Production use needs databas
 
 ## Known gaps
 
-No universal agent interception, qualified live-provider adapter, semantic model detector,
-production identity layer, or benchmark suite exists yet. Provider-neutral external reconciliation
-is implemented; see [External Outcome Reconciliation](EXTERNAL_RECONCILIATION.md) for its trusted
-provider requirements and limits. Do not treat this scaffold as a production security guarantee.
+No universal agent interception, qualified live-provider adapter, production identity layer, or production-qualified benchmark suite exists yet. The optional semantic comparator has a starter labelled dataset but has not been measured against a live Gemma model here. Provider-neutral external reconciliation is implemented; see [External Outcome Reconciliation](EXTERNAL_RECONCILIATION.md) for its trusted provider requirements and limits. Do not treat this scaffold as a production security guarantee.

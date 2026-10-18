@@ -71,13 +71,14 @@ without provider metadata remain fail closed. These local tests do not qualify a
 
 ## M6 — Optional Semantic Drift Detection and Gemma Adapter
 
-**Status: Planned.**
+**Status: Implementation added; live Gemma measurements and broader independent evaluation remain pending.**
 
-- [ ] Define a provider interface independent of the core validator.
-- [ ] Add optional Gemma-based structured plan comparison.
-- [ ] Validate all model output and treat semantic signals as advisory.
-- [ ] Test malformed outputs, refusals, uncertainty, prompt injection, and model unavailability.
-- [ ] Measure precision, recall, false pauses, missed drift, latency, and token overhead.
+- [x] Define a provider interface independent of the core validator.
+- [x] Add optional Gemma-based structured plan comparison through an Ollama-compatible endpoint.
+- [x] Validate all model output and treat semantic signals as advisory; semantic output cannot change core validator decisions.
+- [x] Test malformed outputs, refusals, uncertainty, prompt injection, invalid references, and model unavailability.
+- [x] Add a labelled starter dataset and reproducible evaluation harness for precision, recall, false-pause rate, missed-drift rate, latency, and token overhead.
+- [ ] Run and review live Gemma measurements on an expanded, independently labelled dataset before publishing accuracy claims.
 
 ## M7 — Cross-Framework Conformance and Evaluation
 

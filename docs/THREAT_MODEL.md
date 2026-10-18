@@ -20,6 +20,8 @@
 | Contract version changes mid-task | Require revalidation when active and evaluated versions differ |
 | Required evidence is missing | Return REVALIDATION_REQUIRED |
 | Approval is missing or out of scope | Return BLOCK |
+| Malformed or adversarial semantic-model output | Enforce strict schema, size, enum, step-ID, and evidence-excerpt validation; discard invalid output |
+| Model suggests a semantic deviation | Expose advisory findings only; deterministic validation and trusted authorization remain authoritative |
 
 ## Threats not yet solved
 
@@ -29,6 +31,8 @@
 - The current audit record is not persisted, signed, or tamper-evident.
 - Natural-language constraints may be ambiguous or incorrectly translated into the contract.
 - The model may omit relevant assumptions when proposing the initial contract.
+- Prompt injection may still influence semantic analysis; a schema-valid but incorrect aligned result or missed drift remains possible.
+- The semantic comparator has not been evaluated against a live Gemma model in this implementation; the starter dataset is not a production benchmark.
 - External providers may not expose reliable version checks, conditional writes, or idempotency support.
 
 ## Security requirements

@@ -11,7 +11,7 @@ It turns important parts of that goal into a **versioned intent contract**, chec
 
 **The core principle is simple: the agent may propose an action; trusted code decides whether that action is allowed to proceed.**
 
-> **Project maturity:** Early-stage engineering implementation. The deterministic validation core and initial runtime components are implemented. M5 includes a provider-neutral reconciliation coordinator and local fault-injection tests. Full MCP conformance, independent framework integration, qualified live-provider adapters, semantic drift evaluation, and production security qualification remain outstanding. See the [implementation roadmap](docs/ROADMAP.md) for the evidence-based status of each milestone.
+> **Project maturity:** Early-stage engineering implementation. The deterministic validation core and initial runtime components are implemented. M5 includes a provider-neutral reconciliation coordinator and local fault-injection tests. M6 adds an optional advisory semantic comparator; live Gemma measurements remain pending. Full MCP conformance, independent framework integration, qualified live-provider adapters, and production security qualification remain outstanding. See the [implementation roadmap](docs/ROADMAP.md) for the evidence-based status of each milestone.
 
 ---
 
@@ -22,6 +22,7 @@ It turns important parts of that goal into a **versioned intent contract**, chec
 - **Want to understand the contract?** Read [the intent contract guide](docs/INTENT_CONTRACT.md).
 - **Integrating an agent or tool?** Read [the runtime guide](docs/RUNTIME_GUIDE.md) and [guarded adapter guide](docs/MCP_ADAPTER.md).
 - **Handling timeouts or duplicate external effects?** Read [external outcome reconciliation](docs/EXTERNAL_RECONCILIATION.md).
+- **Evaluating semantic drift?** Read [the optional semantic comparator guide](docs/SEMANTIC_DRIFT.md).
 - **Reviewing security boundaries?** Read [the threat model](docs/THREAT_MODEL.md).
 - **Checking what is complete?** Read [the roadmap](docs/ROADMAP.md).
 
@@ -56,6 +57,9 @@ flowchart TD
     U[User goal] --> H[Trusted host authorizes request]
     H --> C[Versioned intent contract]
     A[AI agent] --> P[Proposed plan or action]
+    C --> SM[Optional semantic comparator]
+    P --> SM
+    SM -. advisory findings only .-> HR[Optional human review]
     C --> D[Deterministic plan-drift checks]
     P --> D
     D --> V[Pre-action validator]
@@ -75,7 +79,7 @@ flowchart TD
     RC --> L
 ~~~
 
-The diagram shows the intended integration boundary. It does **not** mean that arbitrary agents are automatically intercepted. A host must route every consequential tool call through the guarded boundary; a separate unguarded route can bypass it.
+The diagram shows the intended integration boundary. It does **not** mean that arbitrary agents are automatically intercepted. A host must route every consequential tool call through the guarded boundary; a separate unguarded route can bypass it. The optional semantic comparator is separate from the deterministic validator and cannot authorize actions or change validator decisions.
 
 ## What is implemented
 
@@ -88,6 +92,7 @@ The diagram shows the intended integration boundary. It does **not** mean that a
 | **Guarded execution** | A host-owned tool registry and callback gate. The action ID is claimed before execution; duplicate claims fail closed. |
 | **Recovery and context reconstruction** | Restore the active authorized contract, verify checkpoint and event history, replay supported later events, detect invalidated assumptions, and rebuild compact context. |
 | **Completion audit** | Compare acceptance criteria with current-plan step records and host-supplied evidence; unresolved action outcomes prevent a ready completion report. |
+| **Semantic drift (M6)** | Optional provider-neutral semantic comparison with a Gemma/Ollama adapter, strict output validation, advisory-only findings, and a labelled evaluation harness. Live Gemma accuracy has not yet been measured. |
 | **External outcome reconciliation (M5)** | Provider-neutral operation records, stable idempotency identity, conditional-version metadata, outcome lookup, and guarded retry after an authoritative **NOT_APPLIED** observation. |
 | **Integration examples** | Runnable validation and long-running-task examples, a local reconciliation demo, a portable agent skill, and a minimal MCP stdio scaffold. |
 | **Engineering checks** | Pytest suite, Ruff, mypy, and GitHub Actions CI configured for Python 3.11, 3.12, and 3.13. |
@@ -168,6 +173,16 @@ python examples/long_running_task.py
 python examples/external_reconciliation.py
 ~~~
 
+**Optional semantic drift evaluation** — requires a local Ollama installation and a Gemma model. It reports labelled-set metrics and per-case output; it does not claim pre-measured accuracy:
+
+~~~bash
+ollama pull gemma3:4b
+ollama serve
+python examples/evaluate_semantic_drift.py --model gemma3:4b
+~~~
+
+See [Semantic Drift](docs/SEMANTIC_DRIFT.md) for the trust boundary, model setup, and metric definitions.
+
 **MCP stdio scaffold** — starts a minimal newline-delimited JSON-RPC server. It is intended to be exercised by an MCP-capable client or a test harness, not as a standalone interactive demo:
 
 ~~~bash
@@ -245,7 +260,7 @@ Intent Integrity is a control component, not a complete security perimeter by it
 - **Time-of-check/time-of-use races remain possible.** A resource may change after validation. Use provider-supported conditional operations and resource-version checks at the write boundary.
 - **Hash chains are tamper-evident, not tamper-proof.** Someone able to rewrite the whole database may be able to recompute the chain. Production systems need protected storage, access controls, backups, and potentially externally anchored signatures.
 - **Evidence checks have a defined boundary.** The engine evaluates evidence metadata supplied by the host; it does not independently authenticate every evidence source or prove natural-language claims.
-- **Semantic drift is not solved universally.** Current checks are deterministic and structure-aware. They do not detect every subtle meaning-level deviation in arbitrary natural language.
+- **Semantic drift is not solved universally.** The optional M6 comparator can flag subtle deviations, but it can miss or hallucinate findings. It is advisory-only and has not been live-benchmarked here.
 
 Read the [threat model](docs/THREAT_MODEL.md), [architecture](docs/ARCHITECTURE.md), and [runtime guide](docs/RUNTIME_GUIDE.md) before connecting tools that can change external systems.
 
@@ -260,7 +275,7 @@ Milestones are not considered complete merely because a file or interface exists
 | **M3 — Plan drift and recovery** | Initial deterministic implementation | Broader state-machine and property-based testing, plus independent evaluation. |
 | **M4 — Portable skill and guarded action boundary** | Initial adapter and minimal MCP stdio scaffold | Official MCP conformance, adversarial bypass testing, and a qualified real-host integration. |
 | **M5 — External outcome reconciliation** | Provider-neutral coordinator and local fault-injection tests implemented | Live-provider adapters must be built and qualified against real provider guarantees. |
-| **M6 — Semantic drift and optional Gemma adapter** | Planned | Validated model interface, adversarial tests, and measured precision/recall, false pauses, latency, and token cost. |
+| **M6 — Semantic drift and optional Gemma adapter** | Initial implementation and evaluation harness added | Live Gemma measurements on an expanded, independently labelled dataset remain pending. |
 | **M7 — Cross-framework conformance and evaluation** | Planned | Integrate Shuddho and an independent framework; publish comparative metrics and bypass-resistance evidence. |
 | **M8 — Open-source release readiness** | Planned | Maintainer-approved license, contribution/security guidance, supply-chain review, reproducible evaluation, and external review. |
 
@@ -277,10 +292,14 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone acceptance criteria and the
 │   ├── INTENT_CONTRACT.md         # Contract model and authorization rules
 │   ├── MCP_ADAPTER.md             # Guarded tools and MCP stdio scope
 │   ├── ROADMAP.md                 # Milestones and acceptance criteria
-│   ├── RUNTIME_GUIDE.md           # Runtime, recovery, and completion audit
+│   ├── RUNTIME_GUIDE.md
+│   ├── SEMANTIC_DRIFT.md           # Optional semantic comparator and evaluation           # Runtime, recovery, and completion audit
 │   └── THREAT_MODEL.md            # Threats, mitigations, and known gaps
+├── benchmarks/
+│   └── semantic_drift_cases.json
 ├── examples/
 │   ├── basic_validation.py
+│   ├── evaluate_semantic_drift.py
 │   ├── external_reconciliation.py
 │   ├── guarded_mcp_server.py
 │   └── long_running_task.py
@@ -294,6 +313,8 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone acceptance criteria and the
 │   ├── mcp_server.py
 │   ├── models.py
 │   ├── reconciliation.py
+│   ├── semantic.py
+│   ├── semantic_evaluation.py
 │   ├── serialization.py
 │   ├── store.py
 │   └── validator.py
