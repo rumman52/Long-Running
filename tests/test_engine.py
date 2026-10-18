@@ -136,6 +136,17 @@ def test_guarded_execute_claims_action_and_prevents_duplicate_execution() -> Non
     with SQLiteEventStore(":memory:") as store:
         engine = IntentIntegrityEngine(store, clock=lambda: NOW)
         engine.start_task(contract)
+        engine.record_plan(
+            contract,
+            (
+                PlanStep(
+                    "draft",
+                    "Draft report from verified source data",
+                    "write_report",
+                    acceptance_criteria=("Report is accurate",),
+                ),
+            ),
+        )
         calls: list[str] = []
         action = ActionRequest("write-1", "write_report")
         result = engine.guarded_execute(
