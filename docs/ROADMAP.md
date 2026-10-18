@@ -101,7 +101,7 @@ without provider metadata remain fail closed. These local tests do not qualify a
 - [x] Add an Apache-2.0 license candidate and matching package metadata.
 - [ ] Obtain explicit maintainer approval of the license choice before release.
 - [x] Add contribution guidance and a private-first security reporting policy in `CONTRIBUTING.md` and `SECURITY.md`.
-- [x] Review the dependency set, add `pip-audit` CI and Dependabot updates, and define Python 3.11–3.14 as supported with 3.15 best-effort. The current supply-chain review still notes that dependency locking and immutable SHA pins for Actions are not yet implemented.
+- [x] Review the dependency set, add `pip-audit` CI and Dependabot updates, and define Python 3.11–3.14 as supported with 3.15 best-effort. Workflow Actions are pinned to verified commit SHAs; a full dependency lockfile remains outstanding and is documented as a residual supply-chain risk in the threat model.
 - [x] Document runnable demos, limitations, benchmark methodology, and unreleased changes in the README, evaluation guide, and `CHANGELOG.md`.
 - [x] Document a maintainer threat-model review and unresolved risks in `docs/THREAT_MODEL.md`.
 - [ ] Obtain an independent external code/security review.
