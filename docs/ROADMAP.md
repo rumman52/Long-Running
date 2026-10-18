@@ -14,7 +14,7 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 
 ## M2 — Runtime State, Event History, and Checkpoints
 
-**Status: Versioned persistence and operational helpers added; CI and deployment qualification required.**
+**Status: Implementation and local CI tests pass; deployment-specific qualification remains.**
 
 - [x] Versioned typed event model.
 - [x] Pin the authorized contract in event history and require explicit versioned amendments.
@@ -30,7 +30,7 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 
 ## M3 — Plan Drift and Recovery
 
-**Status: Initial deterministic implementation added; broader evaluation required.**
+**Status: Deterministic implementation and property-based regression tests added; independent recovery evaluation remains.**
 
 - [x] Detect unauthorized plan actions and invalidated assumptions.
 - [x] Detect missing dependencies, cycles, and acceptance-criteria gaps.
@@ -45,7 +45,7 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 
 ## M4 — Portable Agent Skill and Controlled Action Boundary
 
-**Status: Initial adapter, portable skill, and minimal MCP stdio scaffold implemented; full conformance and real-host qualification remain.**
+**Status: Guarded adapter, portable skill, and official MCP SDK smoke test implemented; full conformance and real-host qualification remain.**
 
 - [x] Add an Agent Skills-compatible `SKILL.md` with explicit trust-boundary guidance.
 - [x] Define a host-owned tool registry and adapter protocol for proposals, trusted context, decisions, and results.
@@ -105,7 +105,7 @@ without provider metadata remain fail closed. These local tests do not qualify a
 - [x] Document supported Python 3.11–3.14 CI targets and a best-effort Python 3.15 job.
 - [x] Publish reproducible demo instructions, benchmark methodology, release-readiness gates, and a changelog.
 - [x] Expand the threat model with trust boundaries, bypass risks, residual risks, and required security tests.
-- [ ] Verify the complete release branch CI and dependency audit pass after the latest changes.
+- [x] Verify CI passes for Python 3.11–3.14, the best-effort Python 3.15 job, LangGraph conformance, M7 fixture evaluation, and pip-audit on the current candidate commit; repeat after any release-candidate change.
 - [ ] Obtain explicit maintainer approval for the license and confirm contributor rights before merge.
 - [ ] Obtain and record independent external code/security review; none is claimed complete.
 - [ ] Publish a tagged release only after all release gates are satisfied.

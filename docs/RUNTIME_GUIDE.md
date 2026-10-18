@@ -134,5 +134,6 @@ An invalid plan, a plan recorded against an old contract version, a missing plan
   [External Outcome Reconciliation](EXTERNAL_RECONCILIATION.md). Existing callback claims lack
   provider metadata and remain fail closed. Live provider adapters require qualification.
 - Natural-language constraints are not automatically enforceable.
-- Semantic plan comparison is not included; current drift checks are deterministic and structural.
+- An optional semantic plan comparator is available through the M6 provider interface. Its findings are advisory only; live Gemma accuracy has not been measured in this repository, and semantic output never grants authorization.
+- See [Operations: Persistence, Backup, Restore, and Retention](OPERATIONS.md) before operating the SQLite store in a deployment.
 - Do not expose the database or approval state to untrusted model-controlled tools.
