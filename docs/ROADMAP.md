@@ -17,6 +17,7 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 **Status: Initial implementation added; CI and integration qualification required.**
 
 - [x] Versioned typed event model.
+- [x] Pin the authorized contract in event history and require explicit versioned amendments.
 - [x] SQLite event sequence with duplicate-event handling and hash-chain verification.
 - [x] Checkpoints with state hashes.
 - [x] Durable action claims with fail-closed duplicate prevention.
@@ -32,7 +33,8 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 - [x] Detect unauthorized plan actions and invalidated assumptions.
 - [x] Detect missing dependencies, cycles, and acceptance-criteria gaps.
 - [x] Recover from a checkpoint and replay events after its sequence.
-- [x] Rebuild compact context anchored to the original contract and verified progress.
+- [x] Rebuild compact context anchored to the active authorized contract and verified progress.
+- [x] Replay later valid plan updates, step-completion records, and action decisions after recovery.
 - [x] Require a persisted, current plan before guarded actions; block malformed, stale, or drifted plans.
 - [x] Record host-confirmed assumption revalidation and require a fresh plan afterward.
 - [x] Tests for plan drift and recovery.

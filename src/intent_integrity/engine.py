@@ -51,6 +51,38 @@ def _dict_tuple(value: object, name: str) -> tuple[dict[str, object], ...]:
     return tuple(value)
 
 
+def _parse_plan_steps(value: object) -> tuple[PlanStep, ...] | None:
+    """Parse persisted plan steps, returning None rather than trusting malformed data."""
+    if not isinstance(value, list):
+        return None
+    steps: list[PlanStep] = []
+    for index, raw_step in enumerate(value):
+        if not isinstance(raw_step, Mapping):
+            return None
+        try:
+            steps.append(
+                PlanStep(
+                    step_id=_required_string(raw_step.get("step_id"), f"plan[{index}].step_id"),
+                    description=_required_string(
+                        raw_step.get("description"), f"plan[{index}].description"
+                    ),
+                    action_category=_required_string(
+                        raw_step.get("action_category"), f"plan[{index}].action_category"
+                    ),
+                    acceptance_criteria=_string_tuple(
+                        raw_step.get("acceptance_criteria", []),
+                        f"plan[{index}].acceptance_criteria",
+                    ),
+                    dependencies=_string_tuple(
+                        raw_step.get("dependencies", []), f"plan[{index}].dependencies"
+                    ),
+                )
+            )
+        except ValueError:
+            return None
+    return tuple(steps)
+
+
 @dataclass(frozen=True, slots=True)
 class CheckpointState:
     """Durable task state used to reconstruct a compact, trusted working context."""
@@ -257,7 +289,7 @@ class IntentIntegrityEngine:
         self.store = store
         self._clock = clock or (lambda: datetime.now(UTC))
 
-    def record_event(
+    def _append_event(
         self,
         task_id: str,
         event_type: EventType,
@@ -265,7 +297,7 @@ class IntentIntegrityEngine:
         *,
         occurred_at: datetime | None = None,
     ) -> StoredEvent:
-        """Append a runtime event."""
+        """Append an event from a trusted engine operation."""
         return self.store.append_event(
             TaskEvent(
                 task_id=task_id,
@@ -275,12 +307,132 @@ class IntentIntegrityEngine:
             )
         )
 
+    def record_event(
+        self,
+        task_id: str,
+        event_type: EventType,
+        payload: dict[str, object],
+        *,
+        occurred_at: datetime | None = None,
+    ) -> StoredEvent:
+        """Append a non-authoritative runtime observation.
+
+        Events that establish or amend intent, revalidate assumptions, mark progress, or record
+        engine decisions must use their dedicated trusted methods rather than arbitrary payloads.
+        """
+        protected = {
+            EventType.TASK_STARTED,
+            EventType.PLAN_RECORDED,
+            EventType.STEP_COMPLETED,
+            EventType.ASSUMPTION_REVALIDATED,
+            EventType.CONTRACT_AMENDED,
+            EventType.ACTION_VALIDATED,
+            EventType.ACTION_CLAIMED,
+            EventType.ACTION_SUCCEEDED,
+            EventType.ACTION_OUTCOME_UNKNOWN,
+            EventType.CHECKPOINT_SAVED,
+            EventType.TASK_COMPLETED,
+        }
+        if event_type in protected:
+            raise ValueError(
+                f"{event_type.value} must be recorded through its trusted engine method"
+            )
+        return self._append_event(
+            task_id, event_type, payload, occurred_at=occurred_at
+        )
+
+    def _active_contract_from_events(
+        self, task_id: str, events: Iterable[StoredEvent]
+    ) -> IntentContract:
+        """Load the latest host-authorized contract from the verified event history."""
+        for stored in reversed(tuple(events)):
+            if stored.event.event_type not in {
+                EventType.TASK_STARTED,
+                EventType.CONTRACT_AMENDED,
+            }:
+                continue
+            raw_contract = stored.event.payload.get("contract")
+            if not isinstance(raw_contract, Mapping):
+                raise EventIntegrityError("Stored authorized contract is malformed")
+            try:
+                contract = contract_from_dict(raw_contract)
+            except ValueError as exc:
+                raise EventIntegrityError("Stored authorized contract is malformed") from exc
+            if contract.contract_id != task_id:
+                raise EventIntegrityError("Stored contract ID does not match its task ID")
+            return contract
+        raise EventIntegrityError(f"No authorized contract exists for task {task_id!r}")
+
+    def _require_active_contract(
+        self,
+        contract: IntentContract,
+        events: Iterable[StoredEvent] | None = None,
+    ) -> IntentContract:
+        """Verify that a caller supplied the currently authorized contract unchanged."""
+        if not self.store.verify_event_chain(contract.contract_id):
+            raise EventIntegrityError("Refusing operation because the event chain is invalid")
+        event_list = tuple(
+            self.store.list_events(contract.contract_id) if events is None else events
+        )
+        active = self._active_contract_from_events(contract.contract_id, event_list)
+        if contract_to_dict(contract) != contract_to_dict(active):
+            raise ValueError(
+                "Supplied contract differs from the active authorized contract; "
+                "use amend_contract for an explicit, versioned change"
+            )
+        return active
+
     def start_task(self, contract: IntentContract) -> StoredEvent:
-        """Record a host-authorized contract as the task's initial intent."""
-        return self.record_event(
+        """Record the initial authorized contract, idempotently for the same contract."""
+        if not self.store.verify_event_chain(contract.contract_id):
+            raise EventIntegrityError("Refusing to start a task with an invalid event chain")
+        contract = contract_from_dict(contract_to_dict(contract))
+        events = self.store.list_events(contract.contract_id)
+        if events:
+            active = self._active_contract_from_events(contract.contract_id, events)
+            if contract_to_dict(active) != contract_to_dict(contract):
+                raise ValueError(
+                    "Task already has a different active contract; use amend_contract"
+                )
+            for stored in reversed(events):
+                if (
+                    stored.event.event_type
+                    in {EventType.TASK_STARTED, EventType.CONTRACT_AMENDED}
+                    and stored.event.payload.get("contract") == contract_to_dict(contract)
+                ):
+                    return stored
+            raise EventIntegrityError("Active contract has no matching authorization event")
+        return self._append_event(
             contract.contract_id,
             EventType.TASK_STARTED,
             {"contract": contract_to_dict(contract), "contract_version": contract.version},
+        )
+
+    def amend_contract(
+        self,
+        current_contract: IntentContract,
+        amended_contract: IntentContract,
+        *,
+        authorization_ref: str,
+    ) -> StoredEvent:
+        """Record a host-authorized contract amendment and invalidate plans from older versions."""
+        active = self._require_active_contract(current_contract)
+        amended_contract = contract_from_dict(contract_to_dict(amended_contract))
+        if amended_contract.contract_id != active.contract_id:
+            raise ValueError("An amendment must keep the same contract_id")
+        if amended_contract.version != active.version + 1:
+            raise ValueError("An amendment must increment the active contract version by one")
+        if not isinstance(authorization_ref, str) or not authorization_ref.strip():
+            raise ValueError("authorization_ref must identify the host/user authorization")
+        return self._append_event(
+            active.contract_id,
+            EventType.CONTRACT_AMENDED,
+            {
+                "contract": contract_to_dict(amended_contract),
+                "previous_version": active.version,
+                "contract_version": amended_contract.version,
+                "authorization_ref": authorization_ref,
+            },
         )
 
     def _active_invalidated_assumptions(
@@ -320,7 +472,11 @@ class IntentIntegrityEngine:
         )
 
     def _latest_plan_drift(
-        self, contract: IntentContract, events: tuple[StoredEvent, ...]
+        self,
+        contract: IntentContract,
+        events: tuple[StoredEvent, ...],
+        *,
+        completed_criteria: Iterable[str] = (),
     ) -> DriftReport:
         """Revalidate the persisted plan and current assumption state before execution."""
         plan_indexes = [
@@ -401,7 +557,9 @@ class IntentIntegrityEngine:
         return detect_plan_drift(
             contract,
             plan,
+            completed_criteria=completed_criteria,
             invalidated_assumptions=self._active_invalidated_assumptions(events),
+            events=events[latest_plan_index + 1 :],
         )
 
     def revalidate_assumption(
@@ -411,6 +569,7 @@ class IntentIntegrityEngine:
         evidence_ids: Iterable[str],
     ) -> StoredEvent:
         """Record host-confirmed revalidation; call only after trusted evidence is checked."""
+        self._require_active_contract(contract)
         assumption = next(
             (item for item in contract.assumptions if item.assumption_id == assumption_id),
             None,
@@ -424,13 +583,71 @@ class IntentIntegrityEngine:
             raise ValueError("All evidence IDs declared by the assumption must be revalidated")
         if not self.store.verify_event_chain(contract.contract_id):
             raise EventIntegrityError("Refusing revalidation because the event chain is invalid")
-        return self.record_event(
+        return self._append_event(
             contract.contract_id,
             EventType.ASSUMPTION_REVALIDATED,
             {
                 "assumption_id": assumption_id,
                 "evidence_ids": list(verified_ids),
                 "verified": True,
+                "contract_version": contract.version,
+            },
+        )
+
+    def record_step_completed(
+        self,
+        contract: IntentContract,
+        step_id: str,
+        *,
+        completed_criteria: Iterable[str] = (),
+        evidence_ids: Iterable[str] = (),
+    ) -> StoredEvent:
+        """Record progress only when the trusted host has verified the supplied evidence."""
+        events = tuple(self.store.list_events(contract.contract_id))
+        self._require_active_contract(contract, events)
+        plan_event = next(
+            (
+                stored.event
+                for stored in reversed(events)
+                if stored.event.event_type == EventType.PLAN_RECORDED
+            ),
+            None,
+        )
+        if plan_event is None or plan_event.payload.get("contract_version") != contract.version:
+            raise ValueError("A current plan must be recorded before completing a step")
+        steps = _parse_plan_steps(plan_event.payload.get("steps"))
+        if steps is None:
+            raise EventIntegrityError("Cannot record progress against a malformed plan")
+        step = next((item for item in steps if item.step_id == step_id), None)
+        if step is None:
+            raise ValueError(f"Step {step_id!r} is not in the current plan")
+
+        raw_criteria = tuple(completed_criteria)
+        raw_evidence_ids = tuple(evidence_ids)
+        if any(not isinstance(item, str) or not item.strip() for item in raw_criteria):
+            raise ValueError("Completed criteria must be non-empty strings")
+        if any(not isinstance(item, str) or not item.strip() for item in raw_evidence_ids):
+            raise ValueError("Evidence IDs must be non-empty strings")
+        criteria = tuple(dict.fromkeys(raw_criteria))
+        verified_evidence_ids = tuple(dict.fromkeys(raw_evidence_ids))
+        if not set(criteria).issubset(step.acceptance_criteria):
+            raise ValueError("Completed criteria must belong to the selected plan step")
+        if not set(step.acceptance_criteria).issubset(criteria):
+            raise ValueError(
+                "All step acceptance criteria must be verified before marking the step complete"
+            )
+        if not set(criteria).issubset(contract.acceptance_criteria):
+            raise ValueError("Completed criteria must belong to the active contract")
+        if criteria and not verified_evidence_ids:
+            raise ValueError("Acceptance criteria require at least one verified evidence ID")
+
+        return self._append_event(
+            contract.contract_id,
+            EventType.STEP_COMPLETED,
+            {
+                "step_id": step_id,
+                "acceptance_criteria": list(criteria),
+                "evidence_ids": list(verified_evidence_ids),
                 "contract_version": contract.version,
             },
         )
@@ -443,12 +660,13 @@ class IntentIntegrityEngine:
             raise EventIntegrityError("Refusing to record a plan with an invalid event chain")
         plan_steps = tuple(plan)
         prior_events = self.store.list_events(contract.contract_id)
+        self._require_active_contract(contract, prior_events)
         report = detect_plan_drift(
             contract,
             plan_steps,
             invalidated_assumptions=self._active_invalidated_assumptions(prior_events),
         )
-        self.record_event(
+        self._append_event(
             contract.contract_id,
             EventType.PLAN_RECORDED,
             {
@@ -474,14 +692,31 @@ class IntentIntegrityEngine:
         action: ActionRequest,
         context: ValidationContext,
     ) -> ValidationResult:
-        """Validate policy and active-plan drift, then append the combined decision."""
+        """Validate the active authorized contract and current plan before an action."""
         if not self.store.verify_event_chain(contract.contract_id):
             raise EventIntegrityError(
                 "Refusing action validation because the event chain is invalid"
             )
-        events = self.store.list_events(contract.contract_id)
-        result = validate_proposed_action(contract, action, context)
-        plan_report = self._latest_plan_drift(contract, events)
+        events = tuple(self.store.list_events(contract.contract_id))
+        active_contract = self._active_contract_from_events(contract.contract_id, events)
+        contract_matches = contract_to_dict(contract) == contract_to_dict(active_contract)
+        result = validate_proposed_action(active_contract, action, context)
+        if not contract_matches:
+            result = ValidationResult(
+                decision=Decision.BLOCK,
+                reason_codes=tuple(
+                    dict.fromkeys((*result.reason_codes, "ACTIVE_CONTRACT_MISMATCH"))
+                ),
+                details=tuple(
+                    (*result.details,
+                     "The supplied contract differs from the active authorized intent.")
+                ),
+                checked_at=result.checked_at,
+                action_id=result.action_id,
+                contract_id=active_contract.contract_id,
+                contract_version=active_contract.version,
+            )
+        plan_report = self._latest_plan_drift(active_contract, events)
         if plan_report.has_blocking_drift:
             blocking_signals = [
                 signal for signal in plan_report.signals
@@ -503,7 +738,7 @@ class IntentIntegrityEngine:
                 contract_id=result.contract_id,
                 contract_version=result.contract_version,
             )
-        self.record_event(
+        self._append_event(
             contract.contract_id,
             EventType.ACTION_VALIDATED,
             {
@@ -511,7 +746,7 @@ class IntentIntegrityEngine:
                 "category": action.category,
                 "decision": result.decision.value,
                 "reason_codes": list(result.reason_codes),
-                "contract_version": contract.version,
+                "contract_version": active_contract.version,
             },
             occurred_at=context.now,
         )
@@ -539,7 +774,7 @@ class IntentIntegrityEngine:
             action.category,
             self._clock(),
         )
-        self.record_event(
+        self._append_event(
             contract.contract_id,
             EventType.ACTION_CLAIMED,
             {"action_id": action.action_id, "category": action.category},
@@ -554,7 +789,7 @@ class IntentIntegrityEngine:
                 ActionStatus.UNKNOWN,
                 {"error_type": error_type},
             )
-            self.record_event(
+            self._append_event(
                 contract.contract_id,
                 EventType.ACTION_OUTCOME_UNKNOWN,
                 {"action_id": action.action_id, "error_type": error_type},
@@ -573,7 +808,7 @@ class IntentIntegrityEngine:
             ActionStatus.SUCCEEDED,
             result_summary,
         )
-        self.record_event(
+        self._append_event(
             contract.contract_id,
             EventType.ACTION_SUCCEEDED,
             {"action_id": action.action_id, **result_summary},
@@ -584,8 +819,9 @@ class IntentIntegrityEngine:
         """Save a validated state snapshot and record its creation in the event history."""
         if not self.store.verify_event_chain(state.task_id):
             raise EventIntegrityError("Refusing to checkpoint a task with an invalid event chain")
+        self._require_active_contract(state.contract)
         checkpoint = self.store.save_checkpoint(state.task_id, state.to_dict())
-        self.record_event(
+        self._append_event(
             state.task_id,
             EventType.CHECKPOINT_SAVED,
             {
@@ -598,22 +834,123 @@ class IntentIntegrityEngine:
         return checkpoint
 
     def recover(self, task_id: str) -> RecoveryBundle:
-        """Verify durable history and reconstruct context from the latest checkpoint."""
+        """Verify durable history and replay intent, plans, progress, and decisions."""
         if not self.store.verify_event_chain(task_id):
             raise EventIntegrityError("Refusing recovery because the event chain is invalid")
         checkpoint = self.store.load_latest_checkpoint(task_id)
         if checkpoint is None:
             raise ValueError(f"No checkpoint exists for task {task_id!r}")
-        state = CheckpointState.from_dict(checkpoint.state)
-        all_events = self.store.list_events(task_id)
-        replay_events = self.store.list_events(task_id, after_sequence=checkpoint.sequence)
-        invalidated = self._active_invalidated_assumptions(all_events)
-        report = detect_plan_drift(
-            state.contract,
-            state.plan,
+
+        checkpoint_state = CheckpointState.from_dict(checkpoint.state)
+        all_events = tuple(self.store.list_events(task_id))
+        replay_events = tuple(self.store.list_events(task_id, after_sequence=checkpoint.sequence))
+        active_contract = self._active_contract_from_events(task_id, all_events)
+
+        plan = checkpoint_state.plan
+        completed_step_ids = list(checkpoint_state.completed_step_ids)
+        completed_criteria = list(checkpoint_state.completed_criteria)
+        decisions = [dict(item) for item in checkpoint_state.decisions]
+        seen_decisions = {json.dumps(item, sort_keys=True) for item in decisions}
+        for stored in all_events:
+            event = stored.event
+            if event.event_type != EventType.ACTION_VALIDATED:
+                continue
+            payload = event.payload
+            action_id = payload.get("action_id")
+            category = payload.get("category")
+            decision = payload.get("decision")
+            reason_codes = payload.get("reason_codes", [])
+            version = payload.get("contract_version")
+            if (
+                isinstance(action_id, str)
+                and isinstance(category, str)
+                and isinstance(decision, str)
+                and type(version) is int
+                and isinstance(reason_codes, list)
+                and all(isinstance(item, str) for item in reason_codes)
+            ):
+                record = {
+                    "action_id": action_id,
+                    "category": category,
+                    "decision": decision,
+                    "reason_codes": list(reason_codes),
+                    "contract_version": version,
+                }
+                key = json.dumps(record, sort_keys=True)
+                if key not in seen_decisions:
+                    decisions.append(record)
+                    seen_decisions.add(key)
+
+        for stored in replay_events:
+            event = stored.event
+            payload = event.payload
+
+            if event.event_type == EventType.PLAN_RECORDED:
+                if payload.get("contract_version") != active_contract.version:
+                    continue
+                parsed_plan = _parse_plan_steps(payload.get("steps"))
+                if parsed_plan is not None:
+                    plan = parsed_plan
+                    current_step_ids = {step.step_id for step in plan}
+                    completed_step_ids = [
+                        item for item in completed_step_ids if item in current_step_ids
+                    ]
+                    completed_criteria = [
+                        item
+                        for item in completed_criteria
+                        if item in active_contract.acceptance_criteria
+                    ]
+
+            elif event.event_type == EventType.STEP_COMPLETED:
+                if payload.get("contract_version") != active_contract.version:
+                    continue
+                step_id = payload.get("step_id")
+                raw_criteria = payload.get("acceptance_criteria", [])
+                raw_evidence_ids = payload.get("evidence_ids", [])
+                if (
+                    not isinstance(step_id, str)
+                    or not isinstance(raw_criteria, list)
+                    or any(not isinstance(item, str) for item in raw_criteria)
+                    or not isinstance(raw_evidence_ids, list)
+                    or any(
+                        not isinstance(item, str) or not item.strip()
+                        for item in raw_evidence_ids
+                    )
+                ):
+                    continue
+                step = next((item for item in plan if item.step_id == step_id), None)
+                criteria = tuple(dict.fromkeys(raw_criteria))
+                if (
+                    step is None
+                    or not set(criteria).issubset(step.acceptance_criteria)
+                    or not set(step.acceptance_criteria).issubset(criteria)
+                    or not set(criteria).issubset(active_contract.acceptance_criteria)
+                    or (criteria and not raw_evidence_ids)
+                ):
+                    continue
+                if step_id not in completed_step_ids:
+                    completed_step_ids.append(step_id)
+                for criterion in criteria:
+                    if criterion not in completed_criteria:
+                        completed_criteria.append(criterion)
+
+        completed_criteria = [
+            item for item in dict.fromkeys(completed_criteria)
+            if item in active_contract.acceptance_criteria
+        ]
+        state = CheckpointState(
+            task_id=task_id,
+            contract=active_contract,
+            plan=plan,
+            completed_step_ids=tuple(dict.fromkeys(completed_step_ids)),
+            completed_criteria=tuple(completed_criteria),
+            verified_facts=checkpoint_state.verified_facts,
+            decisions=tuple(decisions),
+        )
+        report = self._latest_plan_drift(
+            active_contract,
+            all_events,
             completed_criteria=state.completed_criteria,
-            invalidated_assumptions=invalidated,
-            events=replay_events,
         )
         compact_context = build_compact_context(state, replay_events)
         return RecoveryBundle(
