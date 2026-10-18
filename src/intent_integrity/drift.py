@@ -210,12 +210,15 @@ def detect_plan_drift(
     for stored in events:
         event = stored.event
         if event.event_type == EventType.ASSUMPTION_INVALIDATED:
-            assumption_id = event.payload.get("assumption_id")
-            if isinstance(assumption_id, str) and assumption_id in assumption_ids:
+            event_assumption_id = event.payload.get("assumption_id")
+            if (
+                isinstance(event_assumption_id, str)
+                and event_assumption_id in assumption_ids
+            ):
                 add(
                     "ASSUMPTION_INVALIDATED",
                     DriftSeverity.BLOCKING,
-                    f"Assumption {assumption_id!r} was invalidated in the event history.",
+                    f"Assumption {event_assumption_id!r} was invalidated in the event history.",
                 )
         elif event.event_type == EventType.ACTION_VALIDATED:
             category = event.payload.get("category")
