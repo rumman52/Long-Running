@@ -23,7 +23,9 @@ It turns important parts of that goal into a **versioned intent contract**, chec
 - **Integrating an agent or tool?** Read [the runtime guide](docs/RUNTIME_GUIDE.md) and [guarded adapter guide](docs/MCP_ADAPTER.md).
 - **Handling timeouts or duplicate external effects?** Read [external outcome reconciliation](docs/EXTERNAL_RECONCILIATION.md).
 - **Operating SQLite state, backups, and retention?** Read [persistence operations](docs/PERSISTENCE_OPERATIONS.md).
-- **Evaluating semantic drift?** Read [the optional semantic comparator guide](docs/SEMANTIC_DRIFT.md).
+- **Evaluating semantic drift?** Read [the optional semantic comparator guide](docs/SEMANTIC_DRIFT.md) and [benchmark methodology](docs/BENCHMARKS.md).
+- **Reproducing tests and demos?** Follow [reproducible demos](docs/REPRODUCIBLE_DEMOS.md).
+- **Preparing a release?** Review [release readiness](docs/RELEASE_READINESS.md).
 - **Reviewing security boundaries?** Read [the threat model](docs/THREAT_MODEL.md) and [security policy](SECURITY.md).
 - **Contributing or reporting a vulnerability?** Read [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 - **Checking what is complete?** Read [the roadmap](docs/ROADMAP.md).
@@ -333,10 +335,14 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone acceptance criteria and the
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── CROSS_FRAMEWORK_CONFORMANCE.md
+│   ├── BENCHMARKS.md
+│   ├── CROSS_FRAMEWORK_CONFORMANCE.md
 │   ├── EXTERNAL_RECONCILIATION.md
 │   ├── INTENT_CONTRACT.md
 │   ├── MCP_ADAPTER.md
 │   ├── PERSISTENCE_OPERATIONS.md
+│   ├── RELEASE_READINESS.md
+│   ├── REPRODUCIBLE_DEMOS.md
 │   ├── ROADMAP.md
 │   ├── RUNTIME_GUIDE.md
 │   ├── SEMANTIC_DRIFT.md
