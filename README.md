@@ -17,6 +17,7 @@ An agent can begin with a correct plan and later forget a constraint, use stale 
 - Checkpoints with state-hash verification and recovery from a saved checkpoint plus later events.
 - Deterministic plan checks for prohibited or unapproved action categories, missing dependencies, cycles, uncovered acceptance criteria, and invalidated assumptions.
 - A guarded callback execution gate that validates first and stores an action claim before execution. Duplicate action IDs fail closed; exceptions are marked as an unknown outcome rather than retried automatically.
+- Criterion-level completion audit against current-plan step records and fresh trusted evidence; unresolved action outcomes prevent a completion record.
 - Automated unit tests and a runnable end-to-end example.
 
 ## What is not yet implemented
@@ -66,6 +67,7 @@ The diagram describes the implemented runtime scaffold and the integration respo
 6. The result or ambiguous outcome is recorded. Reusing the same action ID fails closed.
 7. The host saves a checkpoint containing the contract, plan, completed criteria, verified facts, and decisions.
 8. On recovery, the engine verifies the event chain and checkpoint hash, reloads the checkpoint, restores the active authorized contract, replays later plan/progress/decision events, detects invalidated assumptions, and rebuilds a compact context anchored to the authorized intent.
+9. Before declaring completion, the host supplies current evidence to `engine.complete_task(contract, evidence=..., now=...)`. Only a ready report records `TASK_COMPLETED`; missing criteria, stale evidence, incomplete steps, and unresolved outcomes prevent it.
 
 A validation `ALLOW` means only that the checks represented in the contract passed at validation time. It does not prove an external operation succeeded or the whole task is complete.
 
@@ -175,6 +177,7 @@ Long-Running/
 - **Hash chain is tamper-evident, not tamper-proof:** an attacker able to rewrite the whole database can recompute the chain. Production deployments need protected storage, access control, backups, and potentially externally anchored signatures.
 - **Natural-language constraints need explicit enforcement:** storing a sentence does not make it machine-checkable.
 - **No universal semantic guarantee:** the current detector finds structured plan and event inconsistencies, not every possible meaning-level drift.
+- **Completion relies on host evidence:** the engine checks IDs, freshness and versions but cannot authenticate a host-provided source or prove a natural-language criterion by itself. A completion record does not prove external side effects or production safety.
 
 See [Threat Model](docs/THREAT_MODEL.md) and [Runtime Guide](docs/RUNTIME_GUIDE.md) before integrating with tools that can affect external systems.
 

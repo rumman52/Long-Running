@@ -39,7 +39,7 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 - [x] Record host-confirmed assumption revalidation and require a fresh plan afterward.
 - [x] Tests for plan drift and recovery.
 - [ ] Add state-machine/property-based tests for illegal transitions and event sequences.
-- [ ] Add a completion verifier that maps each acceptance criterion to trusted evidence.
+- [x] Add a completion verifier that maps each acceptance criterion to host-supplied evidence from current-plan step records, with freshness checks and unresolved-outcome blocking.
 
 ## M4 — Portable Agent Skill and Controlled Action Boundary
 

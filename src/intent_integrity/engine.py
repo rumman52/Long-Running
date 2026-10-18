@@ -24,12 +24,14 @@ from intent_integrity.events import (
 from intent_integrity.models import (
     ActionRequest,
     Decision,
+    Evidence,
     IntentContract,
     ValidationContext,
     ValidationResult,
 )
 from intent_integrity.serialization import contract_from_dict, contract_to_dict
 from intent_integrity.store import EventIntegrityError, SQLiteEventStore
+from intent_integrity.validator import _check_evidence
 from intent_integrity.validator import validate_action as validate_proposed_action
 
 
@@ -197,6 +199,26 @@ class RecoveryBundle:
     replay_events: tuple[StoredEvent, ...]
     drift_report: DriftReport
     compact_context: str
+
+
+@dataclass(frozen=True, slots=True)
+class CompletionReport:
+    """Criterion-level evidence audit; readiness is not an external success guarantee."""
+
+    ready: bool
+    evidence_by_criterion: dict[str, tuple[str, ...]]
+    reason_codes: tuple[str, ...]
+    checked_at: datetime
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "ready": self.ready,
+            "evidence_by_criterion": {
+                key: list(value) for key, value in self.evidence_by_criterion.items()
+            },
+            "reason_codes": list(self.reason_codes),
+            "checked_at": self.checked_at.isoformat(),
+        }
 
 
 def build_compact_context(
@@ -814,6 +836,113 @@ class IntentIntegrityEngine:
             {"action_id": action.action_id, **result_summary},
         )
         return ActionExecutionOutcome(validation=validation, executed=True, value=value)
+
+    def verify_completion(
+        self,
+        contract: IntentContract,
+        *,
+        evidence: Mapping[str, Evidence],
+        now: datetime,
+    ) -> CompletionReport:
+        """Check current-plan progress against fresh, host-supplied evidence.
+
+        The host is responsible for authenticating evidence sources and for enforcing that
+        no external action bypasses the guarded boundary. Checkpoint claims alone do not
+        establish completion; only step events from the current plan are considered.
+        """
+        self._require_active_contract(contract)
+        events = tuple(self.store.list_events(contract.contract_id))
+        reasons: list[str] = []
+        if now.tzinfo is None or now.utcoffset() is None:
+            reasons.append("VALIDATION_TIME_NOT_TIMEZONE_AWARE")
+        if not contract.acceptance_criteria:
+            reasons.append("NO_ACCEPTANCE_CRITERIA")
+        report = self._latest_plan_drift(contract, events)
+        if report.has_blocking_drift:
+            reasons.extend(
+                signal.code for signal in report.signals
+                if signal.severity == DriftSeverity.BLOCKING
+            )
+        plan_index = next(
+            (i for i in range(len(events) - 1, -1, -1)
+             if events[i].event.event_type == EventType.PLAN_RECORDED),
+            None,
+        )
+        cited: dict[str, list[str]] = {item: [] for item in contract.acceptance_criteria}
+        if plan_index is not None:
+            plan_event = events[plan_index].event
+            steps = _parse_plan_steps(plan_event.payload.get("steps"))
+            step_by_id = {step.step_id: step for step in steps or ()}
+            if steps is None or plan_event.payload.get("contract_version") != contract.version:
+                reasons.append("ACTIVE_PLAN_MALFORMED_OR_STALE")
+            else:
+                completed_steps: set[str] = set()
+                for stored in events[plan_index + 1:]:
+                    item = stored.event
+                    if item.event_type != EventType.STEP_COMPLETED:
+                        continue
+                    payload = item.payload
+                    step_id = payload.get("step_id")
+                    step = step_by_id.get(step_id) if isinstance(step_id, str) else None
+                    ids = payload.get("evidence_ids")
+                    criteria = payload.get("acceptance_criteria")
+                    if (step is None or payload.get("contract_version") != contract.version
+                        or not isinstance(ids, list) or not ids
+                        or any(not isinstance(x, str) or not x.strip() for x in ids)
+                        or not isinstance(criteria, list)
+                        or not all(isinstance(x, str) for x in criteria)
+                        or set(criteria) != set(step.acceptance_criteria)):
+                        reasons.append("INVALID_STEP_COMPLETION")
+                        continue
+                    if not set(step.dependencies).issubset(completed_steps):
+                        reasons.append("INCOMPLETE_STEP_DEPENDENCY")
+                        continue
+                    completed_steps.add(step.step_id)
+                    for criterion in criteria:
+                        if criterion in cited:
+                            cited[criterion].extend(ids)
+                if any(step.step_id not in completed_steps for step in steps):
+                    reasons.append("PLAN_STEPS_INCOMPLETE")
+
+        for ids in cited.values():
+            if not ids:
+                reasons.append("ACCEPTANCE_CRITERION_INCOMPLETE")
+            for evidence_id in dict.fromkeys(ids):
+                blocked, revalidate = _check_evidence(evidence_id, evidence.get(evidence_id), now)
+                reasons.extend(blocked + revalidate)
+        for stored in events:
+            if stored.event.event_type != EventType.ACTION_CLAIMED:
+                continue
+            action_id = stored.event.payload.get("action_id")
+            action = (
+                self.store.get_action_record(contract.contract_id, action_id)
+                if isinstance(action_id, str) else None
+            )
+            if action is None or action.status != ActionStatus.SUCCEEDED:
+                reasons.append("ACTION_OUTCOME_UNRESOLVED")
+        return CompletionReport(
+            ready=not reasons,
+            evidence_by_criterion={key: tuple(dict.fromkeys(ids)) for key, ids in cited.items()},
+            reason_codes=tuple(dict.fromkeys(reasons)),
+            checked_at=now,
+        )
+
+    def complete_task(
+        self,
+        contract: IntentContract,
+        *,
+        evidence: Mapping[str, Evidence],
+        now: datetime,
+    ) -> CompletionReport:
+        """Record completion only after the criterion evidence audit passes."""
+        report = self.verify_completion(contract, evidence=evidence, now=now)
+        if not report.ready:
+            return report
+        if any(item.event.event_type == EventType.TASK_COMPLETED
+               for item in self.store.list_events(contract.contract_id)):
+            raise ValueError("Task completion was already recorded")
+        self._append_event(contract.contract_id, EventType.TASK_COMPLETED, report.to_dict())
+        return report
 
     def checkpoint(self, state: CheckpointState) -> CheckpointRecord:
         """Save a validated state snapshot and record its creation in the event history."""

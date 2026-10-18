@@ -5,7 +5,8 @@ from intent_integrity.drift import (
     DriftReport, DriftSeverity, DriftSignal, PlanStep, detect_plan_drift,
 )
 from intent_integrity.engine import (
-    ActionExecutionOutcome, CheckpointState, IntentIntegrityEngine, RecoveryBundle,
+    ActionExecutionOutcome, CheckpointState, CompletionReport,
+    IntentIntegrityEngine, RecoveryBundle,
     build_compact_context,
 )
 from intent_integrity.events import (
@@ -26,7 +27,8 @@ from intent_integrity.validator import validate_action
 __all__ = [
     "ActionAlreadyClaimed", "ActionExecutionOutcome", "ActionRecord", "ActionRequest",
     "ActionStateError", "ActionStatus", "Approval", "ApprovalStatus", "Assumption",
-    "CheckpointRecord", "CheckpointState", "Decision", "DriftReport", "DriftSeverity",
+    "CheckpointRecord", "CheckpointState", "CompletionReport", "Decision",
+    "DriftReport", "DriftSeverity",
     "DriftSignal", "DuplicateEventConflict", "EventIntegrityError", "EventStoreError",
     "EventType", "Evidence", "GuardedToolAdapter", "IntentContract", "IntentIntegrityEngine",
     "MCPStdioServer", "PlanStep", "RecoveryBundle", "SQLiteEventStore", "StoredEvent",
