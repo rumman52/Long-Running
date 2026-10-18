@@ -1,6 +1,6 @@
 # Intent Contract — Initial Semantics
 
-An intent contract captures the machine-readable parts of a user's request that a long-running agent must preserve.
+An intent contract captures the machine-readable parts of a user's request that a long-running agent must preserve. The host application must authorize and version the active contract; model output alone cannot change enforcement policy.
 
 ## Required concepts
 
@@ -10,15 +10,16 @@ An intent contract captures the machine-readable parts of a user's request that 
 - **constraints:** declared limits; natural-language values are not enforced by the initial validator.
 - **permitted_actions:** explicit allowlist of action categories.
 - **prohibited_actions:** explicit denylist; denylist takes precedence.
+- **consequential_actions:** action categories that require contract-level approvals.
+- **required_evidence_by_action:** mapping from action category to evidence IDs that must be checked before that action.
+- **required_approvals_by_action:** mapping from action category to approval IDs that must be checked before that action.
 - **assumptions:** assumptions, associated evidence IDs, and invalidation conditions.
-- **required_approvals:** approval IDs required for consequential actions.
+- **required_approvals:** approval IDs required for every consequential action.
 - **acceptance_criteria:** declared criteria for later outcome verification.
 
 ## Action request
 
-Each action has a unique action ID and a category. The caller declares whether it is consequential and lists evidence and approval IDs required for that specific action.
-
-The integration must not let the model lower the consequential flag or remove requirements from an action without trusted policy logic.
+An action request contains only an action ID and category. Requirements are resolved from the active, trusted contract. This prevents the model from omitting a required evidence ID, changing the consequential flag, or removing an approval requirement when proposing an action.
 
 ## Evidence freshness
 
