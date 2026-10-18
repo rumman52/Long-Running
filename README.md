@@ -187,4 +187,4 @@ The demo uses fake local callbacks and a temporary SQLite database; it does not 
 
 ## License
 
-This project is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE). The license change is proposed for maintainer review in the M8 release-readiness pull request; do not treat it as adopted until that change is approved and merged.
+This project is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
