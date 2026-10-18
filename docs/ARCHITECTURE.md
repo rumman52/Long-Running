@@ -60,7 +60,9 @@ sequenceDiagram
 
 ## Trust and authorization
 
-The host is the authority for who requested a task and which contract version is active. The agent may suggest a contract or plan, but model output alone must not activate a contract, remove a constraint, mark evidence verified, or grant approval.
+The host is the authority for who requested a task and which contract version is active. The engine pins the initial contract in the verified event history and compares each supplied contract with that active record. A different goal or policy at the same version is blocked. A legitimate change must use the explicit amendment operation, increment the version by exactly one, and carry a host/user authorization reference. The reference is audit metadata, not a cryptographic signature; the host must authenticate the authorizing person or system.
+
+The agent may suggest a contract or plan, but model output alone must not activate a contract, remove a constraint, mark evidence verified, or grant approval. Trusted lifecycle events cannot be written through the generic observation-event API.
 
 Evidence and approval state must be populated by authenticated integration code. The validator checks only the fields it receives; it cannot prove that a compromised adapter told the truth.
 
@@ -73,7 +75,7 @@ Evidence and approval state must be populated by authenticated integration code.
 
 ## Recovery semantics
 
-Recovery verifies the task's event chain and the latest checkpoint hash. It restores the authorized contract, plan, completed criteria, verified facts, and prior decisions, then reads events after the checkpoint. Invalidated assumptions create blocking drift findings. The compact context explicitly says that external content and event payloads are records, not authority.
+Recovery verifies the task's event chain and the latest checkpoint hash. It restores the active authorized contract, replays later valid plan updates, step-completion records, and action decisions, and preserves verified facts and prior decisions from the checkpoint. A plan recorded against an older contract version blocks execution until a current plan is recorded. Invalidated assumptions create blocking drift findings; host-confirmed revalidation requires another plan before execution. The compact context explicitly says that external content and event payloads are records, not authority.
 
 The checkpoint is a state snapshot, not a substitute for the event history. The history is retained so changes can be inspected.
 

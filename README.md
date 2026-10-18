@@ -9,6 +9,7 @@ An agent can begin with a correct plan and later forget a constraint, use stale 
 ## What is implemented
 
 - Typed intent, action, evidence, approval, and validation-result models.
+- The initially authorized contract is pinned in the task ledger. A changed goal or policy cannot silently replace it; amendments require an explicit, versioned host authorization reference.
 - Strict JSON serialization/deserialization and a JSON Schema for intent contracts.
 - Deterministic `ALLOW`, `BLOCK`, and `REVALIDATION_REQUIRED` decisions.
 - Contract-owned action permissions, evidence requirements, and approval requirements.
@@ -64,7 +65,7 @@ The diagram describes the implemented runtime scaffold and the integration respo
 5. Only `ALLOW` may reach the guarded execution callback. The action ID is claimed durably before the callback runs.
 6. The result or ambiguous outcome is recorded. Reusing the same action ID fails closed.
 7. The host saves a checkpoint containing the contract, plan, completed criteria, verified facts, and decisions.
-8. On recovery, the engine verifies the event chain and checkpoint hash, reloads the checkpoint, reads later events, detects invalidated assumptions, and rebuilds a compact context anchored to the original intent.
+8. On recovery, the engine verifies the event chain and checkpoint hash, reloads the checkpoint, restores the active authorized contract, replays later plan/progress/decision events, detects invalidated assumptions, and rebuilds a compact context anchored to the authorized intent.
 
 A validation `ALLOW` means only that the checks represented in the contract passed at validation time. It does not prove an external operation succeeded or the whole task is complete.
 

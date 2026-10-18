@@ -59,7 +59,7 @@ with SQLiteEventStore("intent-ledger.sqlite3") as store:
     assert result.executed
 ```
 
-The host must authenticate the user and authorize the contract before calling `start_task`. The example omits that application-specific identity layer.
+The host must authenticate the user and authorize the contract before calling `start_task`. The engine stores that contract as the active intent and blocks silent changes. If a user explicitly changes the goal or policy, the host should call `amend_contract(current_contract, amended_contract, authorization_ref=...)`; the amended contract must retain the task ID and increment the version by exactly one. The authorization reference is for auditability and does not itself authenticate the user. The example omits that application-specific identity layer.
 
 ## 3. Contract and action IDs
 
@@ -84,10 +84,12 @@ Create a `CheckpointState` containing the authorized contract, plan, completed s
 After restart, call `engine.recover(task_id)`. Recovery:
 1. verifies the event hash chain;
 2. loads and verifies the latest checkpoint;
-3. reconstructs the typed state;
-4. reads events after the checkpoint sequence;
-5. detects invalidated assumptions and selected event-level drift;
-6. returns a compact context anchored to the original intent.
+3. restores the latest host-authorized contract;
+4. replays valid plan updates, verified step-completion records, and action decisions after the checkpoint;
+5. detects invalidated assumptions and active-plan drift;
+6. returns a compact context anchored to the authorized intent.
+
+Use `engine.record_step_completed(...)` only after the host has checked the cited evidence. Acceptance criteria require at least one evidence ID before they can be marked complete. The method records the evidence references; the host remains responsible for checking that the evidence is real and trustworthy.
 
 A recovery bundle can report blocking drift. The host must stop or replan when blocking drift exists; this scaffold does not autonomously choose a new authorized goal.
 
