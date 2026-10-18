@@ -29,9 +29,6 @@ def _build_args_model(definition: ToolDefinition) -> Any:
             StrictStr,
             create_model,
         )
-        # JSON Schema fields are assembled dynamically; Pydantic's static overloads
-        # cannot express the runtime field mapping built below.
-        create_model_dynamic = cast(Any, create_model)
     except ImportError as exc:
         raise ImportError(
             "LangGraph integration requires the optional dependency: "
@@ -74,7 +71,8 @@ def _build_args_model(definition: ToolDefinition) -> Any:
             items = schema.get("items")
             if not isinstance(items, Mapping):
                 raise ValueError(f"Array field {field_name!r} must define item schema")
-            return list[annotation_for(items, f"{field_name}Item", depth + 1)]  # type: ignore[misc]
+            list_type = cast(Any, list)
+            return list_type[annotation_for(items, f"{field_name}Item", depth + 1)]
         if schema_type == "object":
             nested_properties = schema.get("properties", {})
             nested_required = schema.get("required", [])
@@ -100,7 +98,7 @@ def _build_args_model(definition: ToolDefinition) -> Any:
                 if child_name not in nested_required:
                     child_type = child_type | None
                 nested_fields[child_name] = (child_type, default)
-            return create_model_dynamic(
+            return cast(Any, create_model)(
                 re.sub(r"[^A-Za-z0-9_]", "_", f"{definition.name}_{field_name}"),
                 __config__=ConfigDict(extra="forbid", strict=True),
                 **nested_fields,
@@ -124,7 +122,7 @@ def _build_args_model(definition: ToolDefinition) -> Any:
             field_type = field_type | None
         fields[field_name] = (field_type, default)
 
-    return create_model(
+    return cast(Any, create_model)(
         re.sub(r"[^A-Za-z0-9_]", "_", f"{definition.name}_Input"),
         __config__=ConfigDict(extra="forbid", strict=True),
         **fields,
