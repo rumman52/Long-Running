@@ -18,6 +18,7 @@ An agent can begin with a correct plan and later forget a constraint, use stale 
 - Deterministic plan checks for prohibited or unapproved action categories, missing dependencies, cycles, uncovered acceptance criteria, and invalidated assumptions.
 - A guarded callback execution gate that validates first and stores an action claim before execution. Duplicate action IDs fail closed; exceptions are marked as an unknown outcome rather than retried automatically.
 - Criterion-level completion audit against current-plan step records and fresh trusted evidence; unresolved action outcomes prevent a completion record.
+- Provider-neutral external outcome reconciliation with durable operation identities, conditional requests, stable idempotency keys, and explicit guarded retries after an authoritative `NOT_APPLIED` observation.
 - Automated unit tests and a runnable end-to-end example.
 
 ## What is not yet implemented
@@ -25,7 +26,7 @@ An agent can begin with a correct plan and later forget a constraint, use stale 
 - A universal wrapper that intercepts every tool call from arbitrary agents.
 - Full MCP SDK conformance and a second independent agent-framework adapter. A minimal local MCP stdio scaffold is included, but it is not a complete SDK replacement.
 - Model-assisted semantic or trajectory drift detection. The current detector checks structured policy and plan relationships; it does not reliably interpret every natural-language deviation.
-- Automatic verification of external side effects or provider-specific reconciliation after ambiguous outcomes.
+- Qualified live-service reconciliation adapters. The provider-neutral reconciliation coordinator and local failure-injection tests are implemented; each real provider must meet its documented guarantees.
 - Authenticated identity/approval services, multi-tenant deployment, a dashboard, or production operational controls.
 - A Gemma integration. The core remains model-independent; an optional model adapter should be added only behind validated interfaces and evaluated separately.
 - Published benchmarks demonstrating improved drift detection or lower false-positive rates.
@@ -108,6 +109,15 @@ Run the runtime demonstration:
 ```bash
 python examples/long_running_task.py
 ```
+
+Run the lost-response reconciliation demonstration:
+
+```bash
+python examples/external_reconciliation.py
+```
+
+See [External Outcome Reconciliation](docs/EXTERNAL_RECONCILIATION.md) for provider obligations,
+restart recovery, conditional writes, and retry behavior.
 
 Run tests and quality checks:
 
@@ -198,7 +208,7 @@ python examples/guarded_mcp_server.py
 
 The demo uses fake local callbacks and a temporary SQLite database; it does not contact an external service. See [MCP adapter guide](docs/MCP_ADAPTER.md) and the portable [Agent Skill](skills/intent-integrity/SKILL.md).
 
-**Important:** only registered tools are guarded. The host must not expose a parallel unguarded route. The MCP wrapper is a limited stdio scaffold, not a complete MCP SDK replacement. Provider-specific reconciliation, authenticated approval services, real-host integration, semantic drift evaluation, and production security qualification remain incomplete.
+**Important:** only registered tools are guarded. The host must not expose a parallel unguarded route. The MCP wrapper is a limited stdio scaffold, not a complete MCP SDK replacement. Qualified live-provider adapters, authenticated approval services, real-host integration, semantic drift evaluation, and production security qualification remain incomplete.
 
 ## License
 

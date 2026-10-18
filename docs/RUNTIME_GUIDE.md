@@ -130,7 +130,9 @@ An invalid plan, a plan recorded against an old contract version, a missing plan
 - All consequential actions must be routed through a trusted action boundary.
 - The SQLite adapter is a starter implementation; validate concurrent writers and crash behavior before production use.
 - Hash verification detects changes to the recorded chain, but cannot prevent an attacker with full database control from rewriting and rehashing the entire database.
-- Provider-specific idempotency and outcome reconciliation are not included.
+- Provider-neutral reconciliation is available through `ExternalActionCoordinator`; see
+  [External Outcome Reconciliation](EXTERNAL_RECONCILIATION.md). Existing callback claims lack
+  provider metadata and remain fail closed. Live provider adapters require qualification.
 - Natural-language constraints are not automatically enforceable.
 - Semantic plan comparison is not included; current drift checks are deterministic and structural.
 - Do not expose the database or approval state to untrusted model-controlled tools.

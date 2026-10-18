@@ -352,6 +352,8 @@ class IntentIntegrityEngine:
             EventType.ACTION_CLAIMED,
             EventType.ACTION_SUCCEEDED,
             EventType.ACTION_OUTCOME_UNKNOWN,
+            EventType.ACTION_RECONCILED,
+            EventType.ACTION_RETRY_CLAIMED,
             EventType.CHECKPOINT_SAVED,
             EventType.TASK_COMPLETED,
         }

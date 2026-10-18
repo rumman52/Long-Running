@@ -18,7 +18,7 @@ Preserve the host-authorized user goal across long-running agent work and preven
 | Trusted host and identity | Authenticates user, authorizes initial contract and amendments, provides trustworthy evidence/approval records | Integration responsibility |
 | Agent action adapter | Intercepts every controlled tool call and maps provider state into trusted validation inputs | Not yet implemented |
 | Semantic/trajectory model | Optional model-assisted analysis for subtler natural-language drift | Not yet implemented |
-| External outcome reconciler | Queries providers after timeouts and resolves ambiguous side effects | Not yet implemented |
+| External outcome reconciler | Persists provider operations, looks up ambiguous outcomes, and guards retries with stable keys and version conditions | Provider-neutral implementation and local fault-injection tests; live adapters need qualification |
 | Evaluation suite | Measures detection, false alarms, recovery, task success, bypass resistance, and overhead | Initial unit tests only |
 
 ## System flow
@@ -111,4 +111,7 @@ The hash chain is tamper-evident, not tamper-proof. Production use needs databas
 
 ## Known gaps
 
-No universal agent interception, provider-specific action adapter, external effect reconciliation, semantic model detector, production identity layer, or benchmark suite exists yet. Do not treat this scaffold as a production security guarantee.
+No universal agent interception, qualified live-provider adapter, semantic model detector,
+production identity layer, or benchmark suite exists yet. Provider-neutral external reconciliation
+is implemented; see [External Outcome Reconciliation](EXTERNAL_RECONCILIATION.md) for its trusted
+provider requirements and limits. Do not treat this scaffold as a production security guarantee.
