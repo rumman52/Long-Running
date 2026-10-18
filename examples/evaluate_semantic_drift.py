@@ -10,11 +10,7 @@ import argparse
 import json
 from pathlib import Path
 
-from intent_integrity.semantic import (
-    GemmaOllamaProvider,
-    SemanticComparisonRequest,
-    SemanticStatus,
-)
+from intent_integrity.semantic import GemmaOllamaProvider, SemanticStatus
 from intent_integrity.semantic_evaluation import (
     evaluate_semantic_drift,
     load_semantic_evaluation_cases,
