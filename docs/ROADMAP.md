@@ -82,13 +82,15 @@ without provider metadata remain fail closed. These local tests do not qualify a
 
 ## M7 — Cross-Framework Conformance and Evaluation
 
-**Status: Planned.**
+**Status: Adapter-level conformance and synthetic evaluation implemented; live-host qualification remains.**
 
-- [ ] Integrate Shuddho as one consumer.
-- [ ] Integrate one independent agent framework.
-- [ ] Publish adapter conformance tests and compatibility matrix.
-- [ ] Compare unmonitored, deterministic-only, and hybrid approaches.
-- [ ] Measure prevented unsafe actions, task success, false blocks, recovery quality, overhead, and bypass resistance.
+- [x] Add a Shuddho consumer bridge for non-consequential asynchronous ToolSpec handlers. Consequential and approval-required tools remain on Shuddho's native approved-action and provider-reconciliation path.
+- [x] Add an optional LangGraph ToolNode adapter and a framework-level conformance test.
+- [x] Publish adapter conformance tests and a compatibility matrix in Cross-Framework Conformance and Evaluation.
+- [x] Add a reproducible comparison of unmonitored, deterministic-only, and hybrid approaches. CI uses frozen fixture signals; the harness can also run with the M6 Gemma/Ollama provider.
+- [x] Calculate unsafe actions prevented, task success, false blocks, ambiguous-outcome recovery quality, local invocation overhead, semantic latency/token usage when a provider reports them, and registered-adapter bypass resistance.
+- [ ] Wire the Shuddho bridge into the deployed Shuddho runtime and verify every consequential tool path; adapter tests alone do not prove live integration.
+- [ ] Run and review M7 with a live Gemma provider on an expanded, independently labelled scenario set. Live semantic metrics remain unmeasured.
 
 ## M8 — Open-Source Release Readiness
 

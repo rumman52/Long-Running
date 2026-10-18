@@ -11,7 +11,7 @@ It turns important parts of that goal into a **versioned intent contract**, chec
 
 **The core principle is simple: the agent may propose an action; trusted code decides whether that action is allowed to proceed.**
 
-> **Project maturity:** Early-stage engineering implementation. The deterministic validation core and initial runtime components are implemented. M5 includes a provider-neutral reconciliation coordinator and local fault-injection tests. M6 adds an optional advisory semantic comparator; live Gemma measurements remain pending. Full MCP conformance, independent framework integration, qualified live-provider adapters, and production security qualification remain outstanding. See the [implementation roadmap](docs/ROADMAP.md) for the evidence-based status of each milestone.
+> **Project maturity:** Early-stage engineering implementation. M5 reconciliation and M6's optional advisory semantic comparator are implemented with local tests; live Gemma measurements remain pending. M7 adds a Shuddho async consumer bridge, optional LangGraph ToolNode integration, adapter conformance tests, and a reproducible comparison harness. The bridge is not yet wired into the deployed Shuddho runtime. See the [implementation roadmap](docs/ROADMAP.md) for evidence-based status.
 
 ---
 
@@ -95,6 +95,8 @@ The diagram shows the intended integration boundary. It does **not** mean that a
 | **Semantic drift (M6)** | Optional provider-neutral semantic comparison with a Gemma/Ollama adapter, strict output validation, advisory-only findings, and a labelled evaluation harness. Live Gemma accuracy has not yet been measured. |
 | **External outcome reconciliation (M5)** | Provider-neutral operation records, stable idempotency identity, conditional-version metadata, outcome lookup, and guarded retry after an authoritative **NOT_APPLIED** observation. |
 | **Integration examples** | Runnable validation and long-running-task examples, a local reconciliation demo, a portable agent skill, and a minimal MCP stdio scaffold. |
+| **Cross-framework adapters (M7)** | Optional LangGraph ToolNode adapter and Shuddho bridge for non-consequential async tools; live Shuddho runtime wiring remains pending. |
+| **Evaluation (M7)** | Reproducible unmonitored/deterministic/hybrid comparison with safety, recovery, latency, token-usage, and adapter-surface bypass metrics. Fixture mode is synthetic. |
 | **Engineering checks** | Pytest suite, Ruff, mypy, and GitHub Actions CI configured for Python 3.11, 3.12, and 3.13. |
 
 These are implementation claims, not a claim that every integration or production threat has been qualified. The roadmap distinguishes implemented code from work that still needs broader testing or external evidence.
@@ -242,7 +244,7 @@ From the activated virtual environment:
 
 ~~~bash
 pytest
-ruff check src tests examples
+ruff check src tests examples benchmarks
 mypy src/intent_integrity
 ~~~
 
@@ -264,6 +266,34 @@ Intent Integrity is a control component, not a complete security perimeter by it
 
 Read the [threat model](docs/THREAT_MODEL.md), [architecture](docs/ARCHITECTURE.md), and [runtime guide](docs/RUNTIME_GUIDE.md) before connecting tools that can change external systems.
 
+
+## Cross-framework conformance and evaluation
+
+Install the optional framework dependency and run adapter conformance tests:
+
+~~~bash
+python -m pip install -e ".[dev,langgraph]"
+pytest tests/conformance -q
+~~~
+
+Run the deterministic fixture comparison:
+
+~~~bash
+python benchmarks/evaluate_m7.py --output artifacts/m7-evaluation.json
+~~~
+
+To measure the M6 semantic provider against the same M7 scenarios, install/run Ollama and a Gemma
+model, then use:
+
+~~~bash
+python benchmarks/evaluate_m7.py --semantic-provider gemma-ollama --model gemma3:4b --output artifacts/m7-gemma-evaluation.json
+~~~
+
+The hybrid host policy maps a validated medium/high semantic review recommendation to a review pause
+only after deterministic validation allows the action. The semantic layer itself never changes the
+core validator decision. Fixture results are not model predictions; see
+[Cross-Framework Conformance and Evaluation](docs/CROSS_FRAMEWORK_CONFORMANCE.md) for metrics and limitations.
+
 ## Current scope and roadmap
 
 Milestones are not considered complete merely because a file or interface exists. The project tracks implementation separately from conformance, integration, and security evidence.
@@ -276,7 +306,7 @@ Milestones are not considered complete merely because a file or interface exists
 | **M4 — Portable skill and guarded action boundary** | Initial adapter and minimal MCP stdio scaffold | Official MCP conformance, adversarial bypass testing, and a qualified real-host integration. |
 | **M5 — External outcome reconciliation** | Provider-neutral coordinator and local fault-injection tests implemented | Live-provider adapters must be built and qualified against real provider guarantees. |
 | **M6 — Semantic drift and optional Gemma adapter** | Initial implementation and evaluation harness added | Live Gemma measurements on an expanded, independently labelled dataset remain pending. |
-| **M7 — Cross-framework conformance and evaluation** | Planned | Integrate Shuddho and an independent framework; publish comparative metrics and bypass-resistance evidence. |
+| **M7 — Cross-framework conformance and evaluation** | Adapter-level implementation and synthetic evaluation added | Live Shuddho runtime wiring and a reviewed model-backed hybrid run remain pending. |
 | **M8 — Open-source release readiness** | Planned | Maintainer-approved license, contribution/security guidance, supply-chain review, reproducible evaluation, and external review. |
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone acceptance criteria and the current checklist. The project does not claim universal drift detection, production readiness, or independently verified security.

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -805,6 +806,84 @@ class IntentIntegrityEngine:
         )
         try:
             value = executor()
+        except Exception as exc:
+            error_type = type(exc).__name__
+            self.store.finish_action(
+                contract.contract_id,
+                action.action_id,
+                ActionStatus.UNKNOWN,
+                {"error_type": error_type},
+            )
+            self._append_event(
+                contract.contract_id,
+                EventType.ACTION_OUTCOME_UNKNOWN,
+                {"action_id": action.action_id, "error_type": error_type},
+            )
+            return ActionExecutionOutcome(
+                validation=validation,
+                executed=False,
+                outcome_unknown=True,
+                error_type=error_type,
+            )
+
+        result_summary = {"result_type": type(value).__name__}
+        self.store.finish_action(
+            contract.contract_id,
+            action.action_id,
+            ActionStatus.SUCCEEDED,
+            result_summary,
+        )
+        self._append_event(
+            contract.contract_id,
+            EventType.ACTION_SUCCEEDED,
+            {"action_id": action.action_id, **result_summary},
+        )
+        return ActionExecutionOutcome(validation=validation, executed=True, value=value)
+
+
+    async def async_guarded_execute(
+        self,
+        contract: IntentContract,
+        action: ActionRequest,
+        context: ValidationContext,
+        executor: Callable[[], Awaitable[object]],
+    ) -> ActionExecutionOutcome:
+        """Validate and durably claim an action before awaiting an async executor.
+
+        Cancellation or an exception after the claim is an ambiguous outcome. The claim is
+        finalized as UNKNOWN and cannot be reused through this gate.
+        """
+        validation = self.validate_action(contract, action, context)
+        if validation.decision != Decision.ALLOW:
+            return ActionExecutionOutcome(validation=validation, executed=False)
+
+        self.store.claim_action(
+            contract.contract_id,
+            action.action_id,
+            action.category,
+            self._clock(),
+        )
+        self._append_event(
+            contract.contract_id,
+            EventType.ACTION_CLAIMED,
+            {"action_id": action.action_id, "category": action.category},
+        )
+        try:
+            value = await executor()
+        except asyncio.CancelledError as exc:
+            error_type = type(exc).__name__
+            self.store.finish_action(
+                contract.contract_id,
+                action.action_id,
+                ActionStatus.UNKNOWN,
+                {"error_type": error_type},
+            )
+            self._append_event(
+                contract.contract_id,
+                EventType.ACTION_OUTCOME_UNKNOWN,
+                {"action_id": action.action_id, "error_type": error_type},
+            )
+            raise
         except Exception as exc:
             error_type = type(exc).__name__
             self.store.finish_action(
