@@ -9,7 +9,6 @@ from urllib.request import Request
 
 import pytest
 
-from examples.evaluate_semantic_drift import load_cases
 from intent_integrity import IntentContract, PlanStep
 from intent_integrity.semantic import (
     SEMANTIC_OUTPUT_SCHEMA,
@@ -26,6 +25,7 @@ from intent_integrity.semantic import (
 from intent_integrity.semantic_evaluation import (
     SemanticEvaluationCase,
     calculate_semantic_metrics,
+    load_semantic_evaluation_cases,
 )
 
 
@@ -373,7 +373,7 @@ def test_semantic_findings_do_not_change_core_validator_decisions() -> None:
 
 def test_benchmark_dataset_loads_and_contains_positive_and_negative_cases() -> None:
     dataset = Path(__file__).resolve().parents[1] / "benchmarks" / "semantic_drift_cases.json"
-    labeling_policy, cases = load_cases(dataset)
+    labeling_policy, cases = load_semantic_evaluation_cases(dataset)
     assert "expected_drift" in labeling_policy
     assert len(cases) == 8
     assert any(case.expected_drift for case in cases)
