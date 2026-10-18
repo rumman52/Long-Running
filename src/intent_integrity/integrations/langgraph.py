@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable, Mapping
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from intent_integrity.adapter import GuardedToolAdapter, ToolDefinition
 
@@ -20,7 +20,7 @@ def _build_args_model(definition: ToolDefinition) -> Any:
     constructs fail during setup instead of being silently weakened for the framework.
     """
     try:
-        from pydantic import (  # type: ignore[import-not-found]
+        from pydantic import (
             ConfigDict,
             Field,
             StrictBool,
@@ -71,7 +71,7 @@ def _build_args_model(definition: ToolDefinition) -> Any:
             items = schema.get("items")
             if not isinstance(items, Mapping):
                 raise ValueError(f"Array field {field_name!r} must define item schema")
-            return list[annotation_for(items, f"{field_name}Item", depth + 1)]  # type: ignore[misc]
+            return list[annotation_for(items, f"{field_name}Item", depth + 1)]
         if schema_type == "object":
             nested_properties = schema.get("properties", {})
             nested_required = schema.get("required", [])
@@ -97,7 +97,7 @@ def _build_args_model(definition: ToolDefinition) -> Any:
                 if child_name not in nested_required:
                     child_type = child_type | None
                 nested_fields[child_name] = (child_type, default)
-            return create_model(
+            return cast(Any, create_model)(
                 re.sub(r"[^A-Za-z0-9_]", "_", f"{definition.name}_{field_name}"),
                 __config__=ConfigDict(extra="forbid", strict=True),
                 **nested_fields,
