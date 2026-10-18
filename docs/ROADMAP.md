@@ -1,59 +1,91 @@
-# Roadmap
+# Implementation Roadmap
 
-This roadmap is evidence-driven. A milestone is complete only when its acceptance criteria pass; a file existing is not proof that a capability is complete.
+A milestone is complete only when its acceptance criteria are tested and the evidence is available. A file existing is not proof that a capability works.
 
 ## M1 — Intent Contract and Deterministic Validation Core
 
-**Status: Implemented; CI verified.**
+**Status: Implemented in the repository.** Verify the latest CI run before release.
 
-- [x] Typed intent contract, evidence, approval, action request, and result models.
-- [x] JSON Schema 2020-12 for the portable contract.
-- [x] Strict contract JSON parsing and serialization.
-- [x] Deterministic ALLOW / BLOCK / REVALIDATION_REQUIRED decisions.
-- [x] Action requirements resolved from contract policy rather than model-supplied per-action flags.
-- [x] Tests for stale evidence, resource-version drift, invalidation, unknown evidence, approval failures, contract-version drift, and serialization.
-- [x] CI across Python 3.11, 3.12, and 3.13 with pytest, Ruff, and mypy.
+- [x] Typed intent, action, evidence, approval, and result models.
+- [x] JSON Schema and strict JSON parsing/serialization.
+- [x] ALLOW / BLOCK / REVALIDATION_REQUIRED semantics.
+- [x] Evidence freshness, invalidation, resource-version and approval checks.
+- [x] Unit tests for core validation and serialization.
 
-## M2 — Intent Drift State and Event Model
+## M2 — Runtime State, Event History, and Checkpoints
 
-- [ ] Define a versioned event model for intent changes, assumption invalidation, evidence refresh, approval changes, and action attempts.
-- [ ] Define deterministic rules that connect events to invalidation of affected evidence and plan steps.
-- [ ] Add explicit state transitions and property-based tests for illegal transitions.
-- [ ] Specify persistence-neutral interfaces without selecting a database prematurely.
+**Status: Initial implementation added; CI and integration qualification required.**
 
-## M3 — Portable Agent Skill Package
+- [x] Versioned typed event model.
+- [x] SQLite event sequence with duplicate-event handling and hash-chain verification.
+- [x] Checkpoints with state hashes.
+- [x] Durable action claims with fail-closed duplicate prevention.
+- [x] UNKNOWN outcome state after callback exceptions.
+- [x] Tests for event idempotency, hash checks, checkpoints, and action claims.
+- [ ] Prove concurrency behavior across multiple processes and SQLite connections.
+- [ ] Add migrations, retention policy, operational backup/restore, and database access-control guidance.
 
-- [ ] Publish a skill manifest following the Agent Skills standard.
-- [ ] Explain how compatible agents create and update intent contracts.
-- [ ] Include examples and guidance for uncertainty, changed assumptions, and revalidation.
-- [ ] Keep model instructions advisory; trusted runtime checks remain authoritative.
+## M3 — Plan Drift and Recovery
 
-## M4 — Controlled Tool Boundary and First Adapter
+**Status: Initial deterministic implementation added; broader evaluation required.**
 
-- [ ] Implement an MCP-facing validation/tool boundary.
-- [ ] Ensure required policy cannot be removed by model output.
-- [ ] Validate as close to execution as practical.
-- [ ] Add safe behavior for timeouts and ambiguous external outcomes.
-- [ ] Add integration tests proving a blocked action does not execute.
+- [x] Detect unauthorized plan actions and invalidated assumptions.
+- [x] Detect missing dependencies, cycles, and acceptance-criteria gaps.
+- [x] Recover from a checkpoint and replay events after its sequence.
+- [x] Rebuild compact context anchored to the original contract and verified progress.
+- [x] Tests for plan drift and recovery.
+- [ ] Add state-machine/property-based tests for illegal transitions and event sequences.
+- [ ] Add a completion verifier that maps each acceptance criterion to trusted evidence.
 
-## M5 — Gemma Intent Interpreter
+## M4 — Portable Agent Skill and Controlled Action Boundary
 
-- [ ] Add a provider interface so the core does not depend on a single model.
-- [ ] Add an optional Gemma adapter for proposing structured intent contracts and summarizing detected drift.
-- [ ] Validate model output against the JSON Schema and host policy.
-- [ ] Test malformed outputs, refusals, uncertainty, and prompt-injection attempts.
-- [ ] Keep all authorization and enforcement decisions in deterministic trusted code.
+**Status: Planned.**
 
-## M6 — Cross-Framework Conformance
+- [ ] Publish an Agent Skills-compatible package and manifest.
+- [ ] Define a stable adapter protocol for action proposals, trusted context, validation decisions, and results.
+- [ ] Implement an MCP-facing adapter that mediates consequential tool calls.
+- [ ] Prove blocked actions do not reach the underlying tool.
+- [ ] Add bypass, prompt-injection, malformed-input, and adapter-failure tests.
 
-- [ ] Integrate Shuddho as the first consumer.
-- [ ] Integrate at least one independent agent environment.
-- [ ] Publish a conformance suite and compatibility matrix.
-- [ ] Measure prevented stale actions, false pauses, successful completion, latency overhead, and bypass resistance.
+## M5 — External Outcome Reconciliation
 
-## M7 — Open-Source Release Readiness
+**Status: Planned.**
 
-- [ ] Select and add an open-source license with maintainer approval.
-- [ ] Review dependencies and supply-chain posture.
-- [ ] Add security reporting guidance and contribution instructions.
-- [ ] Publish reproducible demos, limitations, benchmarks, and release notes.
+- [ ] Define provider-neutral interfaces for idempotency keys, conditional operations, and outcome lookup.
+- [ ] Reconcile CLAIMED/UNKNOWN actions after restart or timeout.
+- [ ] Ensure a retry cannot duplicate an external side effect.
+- [ ] Add fault-injection tests for response loss, process crash, stale versions, and provider errors.
+
+## M6 — Optional Semantic Drift Detection and Gemma Adapter
+
+**Status: Planned.**
+
+- [ ] Define a provider interface independent of the core validator.
+- [ ] Add optional Gemma-based structured plan comparison.
+- [ ] Validate all model output and treat semantic signals as advisory.
+- [ ] Test malformed outputs, refusals, uncertainty, prompt injection, and model unavailability.
+- [ ] Measure precision, recall, false pauses, missed drift, latency, and token overhead.
+
+## M7 — Cross-Framework Conformance and Evaluation
+
+**Status: Planned.**
+
+- [ ] Integrate Shuddho as one consumer.
+- [ ] Integrate one independent agent framework.
+- [ ] Publish adapter conformance tests and compatibility matrix.
+- [ ] Compare unmonitored, deterministic-only, and hybrid approaches.
+- [ ] Measure prevented unsafe actions, task success, false blocks, recovery quality, overhead, and bypass resistance.
+
+## M8 — Open-Source Release Readiness
+
+**Status: Planned.**
+
+- [ ] Select and add an explicit open-source license with maintainer approval.
+- [ ] Add contribution and security reporting guidance.
+- [ ] Review dependencies, supply-chain posture, and supported Python versions.
+- [ ] Publish reproducible demos, limitations, benchmark methodology, and release notes.
+- [ ] Run threat-model review and external code review.
+
+## Definition of done
+
+A release must provide reproducible install/run instructions, passing CI, meaningful test coverage for its advertised behavior, documented limitations, and evidence for security claims. “Universal drift detection” and “production-ready” are not acceptable claims until measured and independently reviewed.
