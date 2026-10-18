@@ -27,12 +27,19 @@ from intent_integrity.reconciliation import (
     ExternalActionCoordinator, ExternalExecutionResult, ExternalOperation, OutcomeStatus,
     ProviderOutcome, ProviderRequest, ReconciliationProvider,
 )
+from intent_integrity.semantic import (
+    GemmaOllamaProvider, ProviderResponse, SemanticAssessment, SemanticComparisonRequest,
+    SemanticDriftProvider, SemanticDriftResult, SemanticFinding, SemanticSeverity, SemanticStatus,
+    analyze_semantic_drift,
+)
 from intent_integrity.validator import validate_action
 
 __all__ = [
     "ExternalActionCoordinator", "ExternalActionRecord", "ExternalExecutionResult",
     "ExternalOperation", "OutcomeStatus", "ProviderOutcome", "ProviderRequest",
-    "ReconciliationProvider",
+    "ReconciliationProvider", "GemmaOllamaProvider", "ProviderResponse", "SemanticAssessment",
+    "SemanticComparisonRequest", "SemanticDriftProvider", "SemanticDriftResult", "SemanticFinding",
+    "SemanticSeverity", "SemanticStatus", "analyze_semantic_drift",
     "ActionAlreadyClaimed", "ActionExecutionOutcome", "ActionRecord", "ActionRequest",
     "ActionStateError", "ActionStatus", "Approval", "ApprovalStatus", "Assumption",
     "CheckpointRecord", "CheckpointState", "CompletionReport", "Decision",
