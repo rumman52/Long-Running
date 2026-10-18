@@ -11,7 +11,7 @@ It turns important parts of that goal into a **versioned intent contract**, chec
 
 **The core principle is simple: the agent may propose an action; trusted code decides whether that action is allowed to proceed.**
 
-> **Project maturity:** Early-stage engineering implementation. The deterministic validation core and initial runtime components are implemented. M5 includes a provider-neutral reconciliation coordinator and local fault-injection tests. M6 adds an optional advisory semantic comparator; live Gemma measurements remain pending. Full MCP conformance, independent framework integration, qualified live-provider adapters, and production security qualification remain outstanding. See the [implementation roadmap](docs/ROADMAP.md) for the evidence-based status of each milestone.
+> **Project maturity:** Early-stage engineering implementation. The M2–M8 integration branch includes multi-process SQLite tests, versioned migrations and backup/restore, M5 reconciliation, M6 advisory semantic comparison, official MCP SDK smoke tests, a LangGraph ToolNode adapter, M7 synthetic evaluation, and M8 release-readiness documentation. Passing CI, maintainer license sign-off, live Gemma measurements, deployed Shuddho runtime wiring, and independent review remain release gates. See the [implementation roadmap](docs/ROADMAP.md) for evidence-based status.
 
 ---
 
@@ -22,8 +22,12 @@ It turns important parts of that goal into a **versioned intent contract**, chec
 - **Want to understand the contract?** Read [the intent contract guide](docs/INTENT_CONTRACT.md).
 - **Integrating an agent or tool?** Read [the runtime guide](docs/RUNTIME_GUIDE.md) and [guarded adapter guide](docs/MCP_ADAPTER.md).
 - **Handling timeouts or duplicate external effects?** Read [external outcome reconciliation](docs/EXTERNAL_RECONCILIATION.md).
-- **Evaluating semantic drift?** Read [the optional semantic comparator guide](docs/SEMANTIC_DRIFT.md).
-- **Reviewing security boundaries?** Read [the threat model](docs/THREAT_MODEL.md).
+- **Operating SQLite state, backups, and retention?** Read [persistence operations](docs/PERSISTENCE_OPERATIONS.md).
+- **Evaluating semantic drift?** Read [the optional semantic comparator guide](docs/SEMANTIC_DRIFT.md) and [benchmark methodology](docs/BENCHMARKS.md).
+- **Reproducing tests and demos?** Follow [reproducible demos](docs/REPRODUCIBLE_DEMOS.md).
+- **Preparing a release?** Review [release readiness](docs/RELEASE_READINESS.md).
+- **Reviewing security boundaries?** Read [the threat model](docs/THREAT_MODEL.md) and [security policy](SECURITY.md).
+- **Contributing or reporting a vulnerability?** Read [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 - **Checking what is complete?** Read [the roadmap](docs/ROADMAP.md).
 
 ## The problem
@@ -95,7 +99,9 @@ The diagram shows the intended integration boundary. It does **not** mean that a
 | **Semantic drift (M6)** | Optional provider-neutral semantic comparison with a Gemma/Ollama adapter, strict output validation, advisory-only findings, and a labelled evaluation harness. Live Gemma accuracy has not yet been measured. |
 | **External outcome reconciliation (M5)** | Provider-neutral operation records, stable idempotency identity, conditional-version metadata, outcome lookup, and guarded retry after an authoritative **NOT_APPLIED** observation. |
 | **Integration examples** | Runnable validation and long-running-task examples, a local reconciliation demo, a portable agent skill, and a minimal MCP stdio scaffold. |
-| **Engineering checks** | Pytest suite, Ruff, mypy, and GitHub Actions CI configured for Python 3.11, 3.12, and 3.13. |
+| **Cross-framework adapters (M7)** | Optional LangGraph ToolNode adapter and Shuddho bridge for non-consequential async tools; live Shuddho runtime wiring remains pending. |
+| **Evaluation (M7)** | Reproducible unmonitored/deterministic/hybrid comparison with safety, recovery, latency, token-usage, and adapter-surface bypass metrics. Fixture mode is synthetic. |
+| **Engineering checks** | Pytest, Ruff, mypy, official MCP SDK smoke conformance, LangGraph ToolNode conformance, M7 fixture evaluation, and a `pip-audit` workflow. CI supports Python 3.11–3.14; Python 3.15 is best-effort. |
 
 These are implementation claims, not a claim that every integration or production threat has been qualified. The roadmap distinguishes implemented code from work that still needs broader testing or external evidence.
 
@@ -242,11 +248,11 @@ From the activated virtual environment:
 
 ~~~bash
 pytest
-ruff check src tests examples
+ruff check src tests examples benchmarks
 mypy src/intent_integrity
 ~~~
 
-The GitHub Actions workflow runs these checks and the long-running-task and reconciliation examples on pushes, pull requests, and manual dispatch for Python 3.11, 3.12, and 3.13. Check the live [CI workflow](https://github.com/rumman52/Long-Running/actions/workflows/ci.yml) for the current result; this README does not assert that an unobserved run has passed.
+The GitHub Actions workflow runs tests, examples, Ruff, and mypy on Python 3.11–3.14, plus a best-effort Python 3.15 job. Separate jobs exercise the official MCP Python SDK, LangGraph ToolNode conformance, M7 fixture evaluation, and dependency auditing. Check the live [CI workflow](https://github.com/rumman52/Long-Running/actions/workflows/ci.yml) for the current result; this README does not assert that an unobserved run has passed.
 
 ## Important safety and integration boundaries
 
@@ -264,6 +270,34 @@ Intent Integrity is a control component, not a complete security perimeter by it
 
 Read the [threat model](docs/THREAT_MODEL.md), [architecture](docs/ARCHITECTURE.md), and [runtime guide](docs/RUNTIME_GUIDE.md) before connecting tools that can change external systems.
 
+
+## Cross-framework conformance and evaluation
+
+Install the optional framework dependency and run adapter conformance tests:
+
+~~~bash
+python -m pip install -e ".[dev,langgraph]"
+pytest tests/conformance -q
+~~~
+
+Run the deterministic fixture comparison:
+
+~~~bash
+python benchmarks/evaluate_m7.py --output artifacts/m7-evaluation.json
+~~~
+
+To measure the M6 semantic provider against the same M7 scenarios, install/run Ollama and a Gemma
+model, then use:
+
+~~~bash
+python benchmarks/evaluate_m7.py --semantic-provider gemma-ollama --model gemma3:4b --output artifacts/m7-gemma-evaluation.json
+~~~
+
+The hybrid host policy maps a validated medium/high semantic review recommendation to a review pause
+only after deterministic validation allows the action. The semantic layer itself never changes the
+core validator decision. Fixture results are not model predictions; see
+[Cross-Framework Conformance and Evaluation](docs/CROSS_FRAMEWORK_CONFORMANCE.md) for metrics and limitations.
+
 ## Current scope and roadmap
 
 Milestones are not considered complete merely because a file or interface exists. The project tracks implementation separately from conformance, integration, and security evidence.
@@ -271,13 +305,13 @@ Milestones are not considered complete merely because a file or interface exists
 | Milestone | Status | What remains important |
 |---|---|---|
 | **M1 — Intent contract and deterministic validation** | Implemented in the repository | Verify the latest CI result before release. |
-| **M2 — Runtime state, event history, checkpoints** | Initial implementation | Multi-process concurrency qualification, migrations, retention, backup/restore, and access-control guidance. |
-| **M3 — Plan drift and recovery** | Initial deterministic implementation | Broader state-machine and property-based testing, plus independent evaluation. |
-| **M4 — Portable skill and guarded action boundary** | Initial adapter and minimal MCP stdio scaffold | Official MCP conformance, adversarial bypass testing, and a qualified real-host integration. |
+| **M2 — Runtime state, event history, checkpoints** | Persistence implementation and local multi-process tests added | Deployment-specific filesystem qualification; retention is documented, but automatic pruning is intentionally not implemented. |
+| **M3 — Plan drift and recovery** | Deterministic recovery and bounded property-based tests added | Broader independent evaluation remains. |
+| **M4 — Portable skill and guarded action boundary** | Portable skill, guarded adapter, MCP scaffold, official-SDK smoke test | Full protocol/client matrix and adversarial evaluation against a real agent host remain. |
 | **M5 — External outcome reconciliation** | Provider-neutral coordinator and local fault-injection tests implemented | Live-provider adapters must be built and qualified against real provider guarantees. |
 | **M6 — Semantic drift and optional Gemma adapter** | Initial implementation and evaluation harness added | Live Gemma measurements on an expanded, independently labelled dataset remain pending. |
-| **M7 — Cross-framework conformance and evaluation** | Planned | Integrate Shuddho and an independent framework; publish comparative metrics and bypass-resistance evidence. |
-| **M8 — Open-source release readiness** | Planned | Maintainer-approved license, contribution/security guidance, supply-chain review, reproducible evaluation, and external review. |
+| **M7 — Cross-framework conformance and evaluation** | Shuddho bridge, LangGraph ToolNode adapter, compatibility matrix, and synthetic harness added | Live Shuddho runtime wiring and a reviewed model-backed hybrid run remain pending. |
+| **M8 — Open-source release readiness** | Readiness baseline added on the integration branch | Maintainer license sign-off, independent external review, passing final CI, and a tagged release remain. |
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone acceptance criteria and the current checklist. The project does not claim universal drift detection, production readiness, or independently verified security.
 
@@ -285,47 +319,52 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone acceptance criteria and the
 
 ~~~text
 .
-├── .github/workflows/ci.yml       # Automated test and quality checks
-├── docs/
-│   ├── ARCHITECTURE.md            # Components, boundaries, and system flow
-│   ├── EXTERNAL_RECONCILIATION.md # Provider contract, outcomes, and retries
-│   ├── INTENT_CONTRACT.md         # Contract model and authorization rules
-│   ├── MCP_ADAPTER.md             # Guarded tools and MCP stdio scope
-│   ├── ROADMAP.md                 # Milestones and acceptance criteria
-│   ├── RUNTIME_GUIDE.md
-│   ├── SEMANTIC_DRIFT.md           # Optional semantic comparator and evaluation
-│   └── THREAT_MODEL.md             # Threats, mitigations, and known gaps           # Runtime, recovery, and completion audit
-│   └── THREAT_MODEL.md            # Threats, mitigations, and known gaps
+├── .github/
+│   ├── dependabot.yml             # Dependency and Actions update proposals
+│   └── workflows/
+│       ├── ci.yml                 # Tests, type/lint checks, framework conformance, evaluation
+│       └── security.yml           # pip-audit dependency audit
+├── LICENSE                        # Apache-2.0 candidate; maintainer sign-off required
+├── CONTRIBUTING.md                # Development and review requirements
+├── SECURITY.md                    # Private-first vulnerability reporting
+├── CHANGELOG.md                   # Unreleased M8 readiness changes
 ├── benchmarks/
+│   ├── evaluate_m7.py
+│   ├── m7_scenarios.json
 │   └── semantic_drift_cases.json
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── CROSS_FRAMEWORK_CONFORMANCE.md
+│   ├── BENCHMARKS.md
+│   ├── CROSS_FRAMEWORK_CONFORMANCE.md
+│   ├── EXTERNAL_RECONCILIATION.md
+│   ├── INTENT_CONTRACT.md
+│   ├── MCP_ADAPTER.md
+│   ├── PERSISTENCE_OPERATIONS.md
+│   ├── RELEASE_READINESS.md
+│   ├── REPRODUCIBLE_DEMOS.md
+│   ├── ROADMAP.md
+│   ├── RUNTIME_GUIDE.md
+│   ├── SEMANTIC_DRIFT.md
+│   └── THREAT_MODEL.md
 ├── examples/
-│   ├── basic_validation.py
-│   ├── evaluate_semantic_drift.py
-│   ├── external_reconciliation.py
-│   ├── guarded_mcp_server.py
-│   └── long_running_task.py
 ├── schemas/intent-contract.schema.json
 ├── skills/intent-integrity/SKILL.md
 ├── src/intent_integrity/
-│   ├── adapter.py
-│   ├── drift.py
-│   ├── engine.py
-│   ├── events.py
-│   ├── mcp_server.py
-│   ├── models.py
-│   ├── reconciliation.py
-│   ├── semantic.py
-│   ├── semantic_evaluation.py
-│   ├── serialization.py
-│   ├── store.py
-│   └── validator.py
+│   ├── integrations/              # Shuddho and optional LangGraph bridges
+│   └── ...                        # Core validation, recovery, storage, and adapters
 ├── tests/
+│   ├── conformance/
+│   ├── test_mcp_sdk_conformance.py
+│   ├── test_state_properties.py
+│   ├── test_store_concurrency.py
+│   └── test_store_operations.py
 └── pyproject.toml
 ~~~
 
 ## License
 
-**No LICENSE file is currently present.** Until the maintainer selects and adds a license, do not assume that this repository grants permission to use, modify, distribute, or sublicense the code. License selection is tracked in [M8 of the roadmap](docs/ROADMAP.md).
+An Apache-2.0 license candidate and matching package metadata are included on the M2–M8 integration branch. The maintainer must explicitly confirm that choice before tagging or publishing a release. Until the license choice is approved and merged, treat the project as unreleased and do not infer additional permissions from roadmap text.
 
 ---
 

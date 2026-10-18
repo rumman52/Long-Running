@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import time
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,6 +24,7 @@ from intent_integrity.events import (
 )
 
 _ZERO_HASH = "0" * 64
+_SCHEMA_VERSION = 2
 
 
 class EventStoreError(RuntimeError):
@@ -83,70 +85,196 @@ class SQLiteEventStore:
         self._connection.execute("PRAGMA foreign_keys = ON")
         self._connection.execute("PRAGMA busy_timeout = 10000")
         if self.path != ":memory:":
-            self._connection.execute("PRAGMA journal_mode = WAL")
-        self._initialize_schema()
+            deadline = time.monotonic() + 10.0
+            while True:
+                try:
+                    self._connection.execute("PRAGMA journal_mode = WAL")
+                    break
+                except sqlite3.OperationalError as exc:
+                    if "locked" not in str(exc).casefold() or time.monotonic() >= deadline:
+                        self._connection.close()
+                        raise
+                    time.sleep(0.025)
+        try:
+            self._initialize_schema()
+        except Exception:
+            self._connection.close()
+            raise
 
     def _initialize_schema(self) -> None:
+        """Bootstrap legacy databases and apply ordered, idempotent migrations."""
         with self._lock:
-            self._connection.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS events (
-                    task_id TEXT NOT NULL,
-                    sequence INTEGER NOT NULL,
-                    event_id TEXT NOT NULL,
-                    event_type TEXT NOT NULL,
-                    occurred_at TEXT NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    previous_hash TEXT NOT NULL,
-                    event_hash TEXT NOT NULL,
-                    envelope_json TEXT NOT NULL,
-                    PRIMARY KEY (task_id, sequence),
-                    UNIQUE (task_id, event_id)
-                );
-
-                CREATE TABLE IF NOT EXISTS checkpoints (
-                    checkpoint_id TEXT PRIMARY KEY,
-                    task_id TEXT NOT NULL,
-                    sequence INTEGER NOT NULL,
-                    created_at TEXT NOT NULL,
-                    state_json TEXT NOT NULL,
-                    state_hash TEXT NOT NULL
-                );
-
-                CREATE INDEX IF NOT EXISTS checkpoints_latest
-                ON checkpoints(task_id, sequence DESC, created_at DESC);
-
-                CREATE TABLE IF NOT EXISTS action_claims (
-                    task_id TEXT NOT NULL,
-                    action_id TEXT NOT NULL,
-                    category TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    claimed_at TEXT NOT NULL,
-                    result_json TEXT,
-                    PRIMARY KEY (task_id, action_id)
-                );
-
-                CREATE TABLE IF NOT EXISTS external_operations (
-                    task_id TEXT NOT NULL,
-                    action_id TEXT NOT NULL,
-                    provider_id TEXT NOT NULL,
-                    operation_id TEXT NOT NULL,
-                    operation_json TEXT NOT NULL,
-                    operation_hash TEXT NOT NULL,
-                    revision INTEGER NOT NULL DEFAULT 0,
-                    attempts INTEGER NOT NULL DEFAULT 1,
-                    PRIMARY KEY (task_id, action_id),
-                    UNIQUE (provider_id, operation_id),
-                    FOREIGN KEY (task_id, action_id)
-                        REFERENCES action_claims(task_id, action_id)
-                );
-                """
-            )
+            version_row = self._connection.execute("PRAGMA user_version").fetchone()
+            version = int(version_row[0]) if version_row is not None else 0
+            if version > _SCHEMA_VERSION:
+                raise EventStoreError(
+                    f"Database schema version {version} is newer than supported version "
+                    f"{_SCHEMA_VERSION}"
+                )
+            if version == 0:
+                self._connection.executescript(
+                    """
+                    CREATE TABLE IF NOT EXISTS events (
+                        task_id TEXT NOT NULL,
+                        sequence INTEGER NOT NULL,
+                        event_id TEXT NOT NULL,
+                        event_type TEXT NOT NULL,
+                        occurred_at TEXT NOT NULL,
+                        payload_json TEXT NOT NULL,
+                        previous_hash TEXT NOT NULL,
+                        event_hash TEXT NOT NULL,
+                        envelope_json TEXT NOT NULL,
+                        PRIMARY KEY (task_id, sequence),
+                        UNIQUE (task_id, event_id)
+                    );
+    
+                    CREATE TABLE IF NOT EXISTS checkpoints (
+                        checkpoint_id TEXT PRIMARY KEY,
+                        task_id TEXT NOT NULL,
+                        sequence INTEGER NOT NULL,
+                        created_at TEXT NOT NULL,
+                        state_json TEXT NOT NULL,
+                        state_hash TEXT NOT NULL
+                    );
+    
+                    CREATE INDEX IF NOT EXISTS checkpoints_latest
+                    ON checkpoints(task_id, sequence DESC, created_at DESC);
+    
+                    CREATE TABLE IF NOT EXISTS action_claims (
+                        task_id TEXT NOT NULL,
+                        action_id TEXT NOT NULL,
+                        category TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        claimed_at TEXT NOT NULL,
+                        result_json TEXT,
+                        PRIMARY KEY (task_id, action_id)
+                    );
+    
+                    CREATE TABLE IF NOT EXISTS external_operations (
+                        task_id TEXT NOT NULL,
+                        action_id TEXT NOT NULL,
+                        provider_id TEXT NOT NULL,
+                        operation_id TEXT NOT NULL,
+                        operation_json TEXT NOT NULL,
+                        operation_hash TEXT NOT NULL,
+                        revision INTEGER NOT NULL DEFAULT 0,
+                        attempts INTEGER NOT NULL DEFAULT 1,
+                        PRIMARY KEY (task_id, action_id),
+                        UNIQUE (provider_id, operation_id),
+                        FOREIGN KEY (task_id, action_id)
+                            REFERENCES action_claims(task_id, action_id)
+                    );
+                    """
+                )
+                self._connection.execute("PRAGMA user_version = 1")
+                version = 1
+            if version == 1:
+                self._connection.execute("BEGIN IMMEDIATE")
+                try:
+                    self._connection.execute(
+                        "CREATE INDEX IF NOT EXISTS events_by_task_type "
+                        "ON events(task_id, event_type, sequence)"
+                    )
+                    self._connection.execute("PRAGMA user_version = 2")
+                    self._connection.execute("COMMIT")
+                except Exception:
+                    if self._connection.in_transaction:
+                        self._connection.execute("ROLLBACK")
+                    raise
 
     def close(self) -> None:
         """Close the underlying SQLite connection."""
         with self._lock:
             self._connection.close()
+
+    def backup_to(self, destination: str | Path) -> Path:
+        """Create a consistent online backup at a new path."""
+        target = Path(destination)
+        if self.path != ":memory:" and target.resolve() == Path(self.path).resolve():
+            raise ValueError("Backup destination must differ from the source database")
+        if target.exists():
+            raise FileExistsError(f"Backup destination already exists: {target}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target_connection = sqlite3.connect(str(target))
+        try:
+            with self._lock:
+                self._connection.backup(target_connection)
+            integrity = target_connection.execute("PRAGMA integrity_check").fetchone()
+            if integrity is None or integrity[0] != "ok":
+                raise EventIntegrityError("SQLite backup failed its integrity check")
+        except Exception:
+            target_connection.close()
+            target.unlink(missing_ok=True)
+            raise
+        target_connection.close()
+        return target
+
+    @classmethod
+    def restore_from(
+        cls, backup_path: str | Path, destination: str | Path
+    ) -> SQLiteEventStore:
+        """Restore to a new path and verify database, event, and checkpoint integrity."""
+        source = Path(backup_path)
+        target = Path(destination)
+        if not source.is_file():
+            raise FileNotFoundError(source)
+        if source.resolve() == target.resolve():
+            raise ValueError("Restore destination must differ from the backup")
+        if target.exists():
+            raise FileExistsError(f"Restore destination already exists: {target}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        source_connection = sqlite3.connect(str(source))
+        target_connection = sqlite3.connect(str(target))
+        try:
+            source_connection.backup(target_connection)
+            integrity = target_connection.execute("PRAGMA integrity_check").fetchone()
+            if integrity is None or integrity[0] != "ok":
+                raise EventIntegrityError("Restored database failed SQLite integrity check")
+        except Exception:
+            target_connection.close()
+            source_connection.close()
+            target.unlink(missing_ok=True)
+            raise
+        target_connection.close()
+        source_connection.close()
+        restored = cls(target)
+        if not restored.verify_all_integrity():
+            restored.close()
+            target.unlink(missing_ok=True)
+            raise EventIntegrityError("Restored database failed event/checkpoint verification")
+        return restored
+
+    def list_task_ids(self) -> tuple[str, ...]:
+        """Return task IDs represented in the event ledger in stable order."""
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT DISTINCT task_id FROM events ORDER BY task_id"
+            ).fetchall()
+        return tuple(str(row[0]) for row in rows)
+
+    def verify_all_event_chains(self) -> bool:
+        """Verify contiguous sequence numbers and hash chains for every task."""
+        return all(self.verify_event_chain(task_id) for task_id in self.list_task_ids())
+
+    def verify_all_integrity(self) -> bool:
+        """Verify every event chain and each stored checkpoint payload hash."""
+        if not self.verify_all_event_chains():
+            return False
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT state_json, state_hash FROM checkpoints"
+            ).fetchall()
+        for row in rows:
+            state_json = str(row["state_json"])
+            if _sha256(state_json) != str(row["state_hash"]):
+                return False
+            try:
+                state = json.loads(state_json)
+            except json.JSONDecodeError:
+                return False
+            if not isinstance(state, dict):
+                return False
+        return True
 
     def __enter__(self) -> SQLiteEventStore:
         return self

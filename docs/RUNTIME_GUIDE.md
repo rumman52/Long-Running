@@ -136,3 +136,4 @@ An invalid plan, a plan recorded against an old contract version, a missing plan
 - Natural-language constraints are not automatically enforceable.
 - Semantic plan comparison is not included; current drift checks are deterministic and structural.
 - Do not expose the database or approval state to untrusted model-controlled tools.
+- Follow [Persistence Operations](PERSISTENCE_OPERATIONS.md) for migrations, verified backup/restore, retention decisions, filesystem access controls, and incident handling. The store does not automatically prune events.
