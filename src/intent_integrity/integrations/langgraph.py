@@ -71,7 +71,7 @@ def _build_args_model(definition: ToolDefinition) -> Any:
             items = schema.get("items")
             if not isinstance(items, Mapping):
                 raise ValueError(f"Array field {field_name!r} must define item schema")
-            return list[annotation_for(items, f"{field_name}Item", depth + 1)]
+            return list[annotation_for(items, f"{field_name}Item", depth + 1)]  # type: ignore[misc]
         if schema_type == "object":
             nested_properties = schema.get("properties", {})
             nested_required = schema.get("required", [])
