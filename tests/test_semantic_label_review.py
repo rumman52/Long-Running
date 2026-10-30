@@ -64,9 +64,14 @@ def _fill_review(path: Path, labels: dict[str, str], reviewer_id: str) -> None:
         fieldnames = reader.fieldnames
         rows = list(reader)
     assert fieldnames is not None
+    review_key = json.loads(
+        (path.parent / "private-review-key.json").read_text(encoding="utf-8")
+    )
+    case_map = review_key["case_map"]
     for row in rows:
-        row["label"] = labels[row["case_id"]]
-        row["rationale"] = f"Independent assessment for {row['case_id']}."
+        source_case_id = case_map[row["case_id"]]
+        row["label"] = labels[source_case_id]
+        row["rationale"] = f"Independent assessment for {source_case_id}."
         row["reviewer_id"] = reviewer_id
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
