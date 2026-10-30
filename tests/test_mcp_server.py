@@ -123,7 +123,6 @@ def test_unknown_method_returns_json_rpc_error() -> None:
         assert reply is not None and reply["error"]["code"] == -32601
 
 
-
 def test_stdio_rejects_non_finite_json_constants_and_continues() -> None:
     with SQLiteEventStore(":memory:") as store:
         server, _ = make_server(store)
@@ -155,6 +154,23 @@ def test_stdio_rejects_duplicate_json_object_keys() -> None:
         )
         reply = json.loads(output.getvalue())
         assert reply["error"]["code"] == -32700
+
+
+def test_stdio_rejects_duplicate_keys_inside_nested_objects() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, _ = make_server(store)
+        output = StringIO()
+        server.serve_stdio(
+            StringIO(
+                '{"jsonrpc":"2.0","id":1,"method":"ping","params":'
+                '{"nested":{"mode":"safe","mode":"unsafe"}}}\n'
+                '{"jsonrpc":"2.0","id":2,"method":"ping"}\n'
+            ),
+            output,
+        )
+        replies = [json.loads(line) for line in output.getvalue().splitlines()]
+        assert replies[0]["error"]["code"] == -32700
+        assert replies[1]["result"] == {}
 
 
 def test_stdio_rejects_oversized_line_and_processes_next_request() -> None:
@@ -197,9 +213,10 @@ def test_stdio_rejects_excessive_json_nesting_and_continues() -> None:
 def test_handle_message_rejects_non_finite_request_id() -> None:
     with SQLiteEventStore(":memory:") as store:
         server, _ = make_server(store)
-        reply = server.handle_message(
-            {"jsonrpc": "2.0", "id": float("nan"), "method": "ping"}
-        )
-        assert reply is not None
-        assert reply["error"]["code"] == -32600
-        assert reply["id"] is None
+        for request_id in (float("nan"), float("inf"), float("-inf")):
+            reply = server.handle_message(
+                {"jsonrpc": "2.0", "id": request_id, "method": "ping"}
+            )
+            assert reply is not None
+            assert reply["error"]["code"] == -32600
+            assert reply["id"] is None

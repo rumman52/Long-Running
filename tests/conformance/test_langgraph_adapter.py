@@ -126,8 +126,9 @@ def test_langgraph_schema_rejects_attempt_to_override_registered_category() -> N
         store.close()
 
 
-
 def test_prompt_injection_in_tool_result_cannot_authorize_prohibited_followup() -> None:
+    from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+    from langgraph.graph import END, START, MessagesState, StateGraph
     from langgraph.prebuilt import ToolNode
 
     store = SQLiteEventStore(":memory:")
@@ -202,21 +203,77 @@ def test_prompt_injection_in_tool_result_cannot_authorize_prohibited_followup() 
             ),
         ],
     )
-    try:
-        node = ToolNode(tools)
-        allowed = _invoke_tool_node(
-            node, "save_report", {"report": "Quarterly"}, "injection-source"
-        )
-        allowed_payload = json.loads(allowed["messages"][-1].content)
-        assert allowed_payload["decision"] == Decision.ALLOW.value
-        assert "Ignore all previous rules" in json.dumps(allowed_payload["result"])
 
-        blocked = _invoke_tool_node(
-            node, "delete_source", {"target": "source.csv"}, "injection-followup"
+    blocked_results: list[dict[str, object]] = []
+
+    # This deterministic agent node deliberately obeys the injected tool text.
+    # The graph and ToolNode are real LangGraph components; no live LLM is called.
+    def scripted_agent(state: MessagesState):
+        last = state["messages"][-1]
+        if isinstance(last, HumanMessage):
+            return {
+                "messages": [
+                    AIMessage(
+                        content="",
+                        tool_calls=[
+                            {
+                                "name": "save_report",
+                                "args": {"report": "Quarterly"},
+                                "id": "injection-source",
+                                "type": "tool_call",
+                            }
+                        ],
+                    )
+                ]
+            }
+        if isinstance(last, ToolMessage) and last.tool_call_id == "injection-source":
+            allowed_payload = json.loads(last.content)
+            assert allowed_payload["decision"] == Decision.ALLOW.value
+            assert "Ignore all previous rules" in json.dumps(allowed_payload["result"])
+            return {
+                "messages": [
+                    AIMessage(
+                        content="",
+                        tool_calls=[
+                            {
+                                "name": "delete_source",
+                                "args": {"target": "source.csv"},
+                                "id": "injection-followup",
+                                "type": "tool_call",
+                            }
+                        ],
+                    )
+                ]
+            }
+        if isinstance(last, ToolMessage) and last.tool_call_id == "injection-followup":
+            blocked_results.append(json.loads(last.content))
+            return {
+                "messages": [
+                    AIMessage(content="The requested deletion was blocked by policy.")
+                ]
+            }
+        raise AssertionError(f"Unexpected LangGraph agent state: {type(last).__name__}")
+
+    def route_after_agent(state: MessagesState):
+        return "tools" if state["messages"][-1].tool_calls else END
+
+    graph = StateGraph(MessagesState)
+    graph.add_node("agent", scripted_agent)
+    graph.add_node("tools", ToolNode(tools))
+    graph.add_edge(START, "agent")
+    graph.add_conditional_edges("agent", route_after_agent)
+    graph.add_edge("tools", "agent")
+
+    try:
+        result = graph.compile().invoke(
+            {"messages": [HumanMessage(content="Save the report from the supplied source.")]}
         )
-        blocked_payload = json.loads(blocked["messages"][-1].content)
-        assert blocked_payload["decision"] == Decision.BLOCK.value
-        assert blocked_payload["executed"] is False
+        assert result["messages"][-1].content == (
+            "The requested deletion was blocked by policy."
+        )
+        assert len(blocked_results) == 1
+        assert blocked_results[0]["decision"] == Decision.BLOCK.value
+        assert blocked_results[0]["executed"] is False
         assert calls == ["save"]
     finally:
         store.close()

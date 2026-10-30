@@ -38,7 +38,11 @@ def context(active: IntentContract, approved: bool = False) -> ValidationContext
     )
 
 
-def make_adapter(store: SQLiteEventStore, fail_context: bool = False):
+def make_adapter(
+    store: SQLiteEventStore,
+    fail_context: bool = False,
+    action_id_calls: list[tuple[str, str, dict[str, object]]] | None = None,
+):
     active = contract()
     engine = IntentIntegrityEngine(store, clock=lambda: NOW)
     engine.start_task(active)
@@ -56,9 +60,14 @@ def make_adapter(store: SQLiteEventStore, fail_context: bool = False):
             raise RuntimeError("trusted source unavailable")
         return context(current)
 
-    def action_id(task: str, tool: str, args):
-        value = json.dumps({"task": task, "tool": tool, "args": args},
-                           sort_keys=True, separators=(",", ":"))
+    def action_id(task: str, tool: str, args: dict[str, object]) -> str:
+        if action_id_calls is not None:
+            action_id_calls.append((task, tool, dict(args)))
+        value = json.dumps(
+            {"task": task, "tool": tool, "args": args},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         return f"{tool}:{hashlib.sha256(value.encode()).hexdigest()}"
 
     adapter = GuardedToolAdapter(engine, lambda: active, provide_context, action_id)
@@ -142,26 +151,85 @@ def test_registry_rejects_bad_schema_duplicate_name_and_schema_mutation() -> Non
             adapter.register_tool(adapter._tools["save_report"])  # type: ignore[attr-defined]
 
 
-def test_oversized_tool_arguments_are_rejected_before_handler_execution() -> None:
+def test_oversized_tool_arguments_are_rejected_before_callbacks() -> None:
     with SQLiteEventStore(":memory:") as store:
-        adapter, calls = make_adapter(store)
+        action_id_calls: list[tuple[str, str, dict[str, object]]] = []
+        adapter, calls = make_adapter(store, action_id_calls=action_id_calls)
         result = adapter.call_tool("save_report", {"report": "x" * 1_000_001})
         assert result.decision == Decision.BLOCK
         assert "MALFORMED_INPUT" in result.reason_codes
+        assert action_id_calls == []
         assert calls == []
 
 
 def test_deeply_nested_tool_arguments_fail_closed_without_raising() -> None:
+    from intent_integrity.adapter import MAX_TOOL_ARGUMENT_DEPTH
+
     with SQLiteEventStore(":memory:") as store:
         adapter, calls = make_adapter(store)
         nested: object = "too deep"
-        for _ in range(1_200):
+        for _ in range(MAX_TOOL_ARGUMENT_DEPTH + 1):
             nested = [nested]
         result = adapter.call_tool("save_report", {"report": nested})
         assert result.decision == Decision.BLOCK
         assert "MALFORMED_INPUT" in result.reason_codes
+        assert "maximum JSON nesting depth" in " ".join(result.details)
         assert calls == []
 
+
+def test_cyclic_tool_arguments_fail_closed_before_callbacks() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        action_id_calls: list[tuple[str, str, dict[str, object]]] = []
+        adapter, calls = make_adapter(store, action_id_calls=action_id_calls)
+        cyclic: list[object] = []
+        cyclic.append(cyclic)
+        result = adapter.call_tool("save_report", {"report": cyclic})
+        assert result.decision == Decision.BLOCK
+        assert "MALFORMED_INPUT" in result.reason_codes
+        assert "circular references" in " ".join(result.details)
+        assert action_id_calls == []
+        assert calls == []
+
+
+def test_non_finite_nested_tool_arguments_fail_closed_before_callbacks() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        action_id_calls: list[tuple[str, str, dict[str, object]]] = []
+        adapter, calls = make_adapter(store, action_id_calls=action_id_calls)
+        result = adapter.call_tool("save_report", {"report": float("nan")})
+        assert result.decision == Decision.BLOCK
+        assert "MALFORMED_INPUT" in result.reason_codes
+        assert "finite JSON numbers" in " ".join(result.details)
+        assert action_id_calls == []
+        assert calls == []
+
+
+def test_tool_argument_node_limit_is_enforced_before_callbacks() -> None:
+    from intent_integrity.adapter import MAX_TOOL_ARGUMENT_NODES
+
+    with SQLiteEventStore(":memory:") as store:
+        action_id_calls: list[tuple[str, str, dict[str, object]]] = []
+        adapter, calls = make_adapter(store, action_id_calls=action_id_calls)
+        result = adapter.call_tool(
+            "save_report", {"report": ["x"] * (MAX_TOOL_ARGUMENT_NODES + 1)}
+        )
+        assert result.decision == Decision.BLOCK
+        assert "MALFORMED_INPUT" in result.reason_codes
+        assert "too many JSON values" in " ".join(result.details)
+        assert action_id_calls == []
+        assert calls == []
+
+
+def test_tool_argument_size_limit_counts_utf8_bytes() -> None:
+    from intent_integrity.adapter import MAX_TOOL_ARGUMENT_BYTES
+
+    with SQLiteEventStore(":memory:") as store:
+        adapter, calls = make_adapter(store)
+        multibyte_text = "é" * (MAX_TOOL_ARGUMENT_BYTES // 2 + 1)
+        result = adapter.call_tool("save_report", {"report": multibyte_text})
+        assert result.decision == Decision.BLOCK
+        assert "MALFORMED_INPUT" in result.reason_codes
+        assert "byte JSON limit" in " ".join(result.details)
+        assert calls == []
 
 
 def test_action_id_factory_mutation_cannot_change_validated_handler_arguments() -> None:

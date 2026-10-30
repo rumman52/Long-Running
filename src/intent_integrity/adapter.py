@@ -229,7 +229,6 @@ def _json_argument_error(value: object) -> str | None:
     return None
 
 
-
 class GuardedToolAdapter:
     """Expose only trusted registered tools and gate every call before execution.
 
