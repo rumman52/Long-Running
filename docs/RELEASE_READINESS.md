@@ -5,7 +5,8 @@ Repository: https://github.com/rumman52/Long-Running
 Audited main revision: `9936b9c64345fcef943bc1603c7ffc0a017dba2d`  
 MCP SDK repair: [PR #14](https://github.com/rumman52/Long-Running/pull/14)  
 Standalone-scope documentation correction: [PR #15](https://github.com/rumman52/Long-Running/pull/15)  
-Input-boundary hardening candidate: [PR #16](https://github.com/rumman52/Long-Running/pull/16)
+Input-boundary hardening candidate: [PR #16](https://github.com/rumman52/Long-Running/pull/16)  
+Semantic dataset/trial candidate: [PR #17](https://github.com/rumman52/Long-Running/pull/17)
 
 ## Summary
 
