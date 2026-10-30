@@ -78,7 +78,7 @@ def test_export_creates_blinded_separate_review_templates(tmp_path: Path) -> Non
     dataset = tmp_path / "cases.json"
     _dataset(dataset)
 
-    reviewer_a, reviewer_b = export_review_templates(dataset, tmp_path / "review")
+    reviewer_a, reviewer_b, review_key = export_review_templates(dataset, tmp_path / "review")
 
     assert reviewer_a != reviewer_b
     with reviewer_a.open("r", newline="", encoding="utf-8") as handle:
@@ -86,8 +86,10 @@ def test_export_creates_blinded_separate_review_templates(tmp_path: Path) -> Non
     with reviewer_b.open("r", newline="", encoding="utf-8") as handle:
         rows_b = list(csv.DictReader(handle))
 
-    assert [row["case_id"] for row in rows_a] == ["case-aligned", "case-disputed"]
-    assert [row["case_id"] for row in rows_b] == ["case-aligned", "case-disputed"]
+    assert len({row["case_id"] for row in rows_a}) == 2
+    assert [row["case_id"] for row in rows_a] == [row["case_id"] for row in rows_b]
+    assert not {"case-aligned", "case-disputed"} & {row["case_id"] for row in rows_a}
+    assert review_key.exists()
     assert "expected_drift" not in rows_a[0]
     assert rows_a[0]["label"] == rows_a[0]["rationale"] == rows_a[0]["reviewer_id"] == ""
     assert rows_b[0]["label"] == rows_b[0]["rationale"] == rows_b[0]["reviewer_id"] == ""
@@ -98,7 +100,7 @@ def test_validation_adjudicates_disagreement_without_reusing_author_label(
 ) -> None:
     dataset = tmp_path / "cases.json"
     _dataset(dataset)
-    reviewer_a, reviewer_b = export_review_templates(dataset, tmp_path / "review")
+    reviewer_a, reviewer_b, review_key = export_review_templates(dataset, tmp_path / "review")
     _fill_review(
         reviewer_a,
         {"case-aligned": "aligned", "case-disputed": "drift"},
@@ -123,6 +125,7 @@ def test_validation_adjudicates_disagreement_without_reusing_author_label(
         reviewer_b,
         output,
         adjudication_path=adjudication,
+        review_key_path=review_key,
     )
 
     reviewed = json.loads(output.read_text(encoding="utf-8"))
@@ -138,7 +141,7 @@ def test_validation_adjudicates_disagreement_without_reusing_author_label(
 def test_validation_requires_adjudication_for_disagreements(tmp_path: Path) -> None:
     dataset = tmp_path / "cases.json"
     _dataset(dataset)
-    reviewer_a, reviewer_b = export_review_templates(dataset, tmp_path / "review")
+    reviewer_a, reviewer_b, review_key = export_review_templates(dataset, tmp_path / "review")
     _fill_review(
         reviewer_a,
         {"case-aligned": "aligned", "case-disputed": "drift"},
@@ -156,13 +159,14 @@ def test_validation_requires_adjudication_for_disagreements(tmp_path: Path) -> N
             reviewer_a,
             reviewer_b,
             tmp_path / "reviewed.json",
+            review_key_path=review_key,
         )
 
 
 def test_validation_rejects_same_reviewer_identity(tmp_path: Path) -> None:
     dataset = tmp_path / "cases.json"
     _dataset(dataset)
-    reviewer_a, reviewer_b = export_review_templates(dataset, tmp_path / "review")
+    reviewer_a, reviewer_b, review_key = export_review_templates(dataset, tmp_path / "review")
     _fill_review(
         reviewer_a,
         {"case-aligned": "aligned", "case-disputed": "drift"},
@@ -180,4 +184,5 @@ def test_validation_rejects_same_reviewer_identity(tmp_path: Path) -> None:
             reviewer_a,
             reviewer_b,
             tmp_path / "reviewed.json",
+            review_key_path=review_key,
         )
