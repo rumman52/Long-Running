@@ -141,27 +141,57 @@ class AsyncToolSpecAdapter:
             )
 
         spec, validator, handler = registered
-        if spec.name != name:
+        try:
+            registered_name = spec.name
+            consequential = spec.consequential
+            approval_required = spec.approval_required
+        except Exception:
+            return self._blocked(
+                "TOOL_METADATA_INVALID",
+                "ToolSpec metadata could not be read; execution is blocked.",
+            )
+        if registered_name != name:
             return self._blocked(
                 "TOOL_METADATA_CHANGED",
                 "Registered ToolSpec name changed; re-register the tool before use.",
             )
-        if not isinstance(spec.consequential, bool) or not isinstance(
-            spec.approval_required, bool
-        ):
+        if not isinstance(consequential, bool) or not isinstance(approval_required, bool):
             return self._blocked(
                 "TOOL_METADATA_INVALID",
                 "ToolSpec approval metadata is invalid; execution is blocked.",
             )
-        if spec.consequential or spec.approval_required:
+        if consequential or approval_required:
             return self._blocked(
                 "TOOL_REQUIRES_APPROVAL",
                 "ToolSpec approval metadata changed after registration; execution is blocked.",
             )
+
         try:
             raw_snapshot = _snapshot_bounded_json(arguments, label="Tool arguments")
             if not isinstance(raw_snapshot, dict):
                 raise ValueError("Tool arguments must be a JSON object")
+        except Exception:
+            return self._blocked(
+                "MALFORMED_INPUT",
+                "Tool arguments must be a bounded JSON object.",
+            )
+
+        try:
+            contract = self._contract_provider()
+            if not isinstance(contract, IntentContract):
+                raise TypeError("contract provider did not return IntentContract")
+            if name not in contract.permitted_actions or name in contract.prohibited_actions:
+                return self._blocked(
+                    "TOOL_NOT_PERMITTED",
+                    "The active intent contract does not permit this exact tool name.",
+                )
+        except Exception as exc:
+            return self._blocked(
+                "ADAPTER_FAILURE",
+                f"Trusted adapter setup failed ({type(exc).__name__}); no tool was executed.",
+            )
+
+        try:
             validation_arguments = _snapshot_bounded_json(
                 raw_snapshot, label="ToolSpec validation arguments"
             )
@@ -184,14 +214,6 @@ class AsyncToolSpecAdapter:
             )
 
         try:
-            contract = self._contract_provider()
-            if not isinstance(contract, IntentContract):
-                raise TypeError("contract provider did not return IntentContract")
-            if name not in contract.permitted_actions or name in contract.prohibited_actions:
-                return self._blocked(
-                    "TOOL_NOT_PERMITTED",
-                    "The active intent contract does not permit this exact tool name.",
-                )
             context = self._context_provider(contract)
             if not isinstance(context, ValidationContext):
                 raise TypeError("context provider did not return ValidationContext")
