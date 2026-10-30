@@ -78,9 +78,9 @@ A blocked result is returned as structured JSON and the underlying callback is n
 
 ## Adversarial tool-result regression (security candidate branch)
 
-The security candidate branch adds a compiled LangGraph `StateGraph`/`ToolNode` regression. A deterministic scripted agent first calls a permitted local report tool, consumes a tool result containing prompt-injection-shaped text, and deliberately attempts a prohibited `delete_source` call. The registered guarded adapter blocks the prohibited action before its callback. The original candidate passed CI before rebasing; the current rebased candidate requires fresh exact-head Python CI and dependency-audit runs.
+The security candidate branch adds a compiled LangGraph `StateGraph`/`ToolNode` regression. A deterministic scripted agent first calls a permitted local report tool, consumes a tool result containing prompt-injection-shaped text, and deliberately attempts a prohibited `delete_source` call. The registered guarded adapter blocks the prohibited action before its callback. The rebased code-bearing head `a66e9a4f0c30f6d5de8fe91c15640eaadd83cb4c` passed Python CI [#41113067617](https://github.com/rumman52/Long-Running/actions/runs/41113067617) and dependency audit [#41113067648](https://github.com/rumman52/Long-Running/actions/runs/41113067648).
 
-This is a deterministic framework-boundary test using real LangGraph graph and ToolNode components but a scripted agent node. It is not a live LLM test, a deployed-host penetration test, or proof that every consumer route is guarded. The rebased security candidate is not yet merged and requires exact-head CI plus independent review.
+This is a deterministic framework-boundary test using real LangGraph graph and ToolNode components but a scripted agent node. It is not a live LLM test, a deployed-host penetration test, or proof that every consumer route is guarded. The security candidate is not yet merged and still requires independent review; any subsequent code changes must pass fresh exact-head CI.
 
 ## MCP and guarded-tool input boundaries (security candidate branch)
 
@@ -90,7 +90,7 @@ This is a deterministic framework-boundary test using real LangGraph graph and T
 - Cycles and non-JSON values are rejected. Validated arguments are snapshotted before the action-ID factory and handler.
 - An invalid/oversized result after callback execution is recorded as an unknown outcome and requires reconciliation before retry.
 
-These controls remain candidate-branch evidence until exact-head CI passes, independent review is complete, and the changes are merged. They do not provide full MCP protocol/client conformance.
+These controls remain candidate-branch evidence until independent review is complete and the changes are merged. They do not provide full MCP protocol/client conformance.
 
 ## Evaluation methodology
 
