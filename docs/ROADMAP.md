@@ -45,7 +45,7 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 
 ## M4 — Portable Agent Skill and Controlled Action Boundary
 - [ ] Bound MCP stdio input length and reject duplicate JSON keys, non-finite numbers, and excessive JSON nesting. Candidate tests and implementation are in [PR #16](https://github.com/rumman52/Long-Running/pull/16); not yet merged.
-- [ ] Bound direct guarded-tool arguments by serialized size, depth, and node count; reject cycles/non-JSON values and snapshot the validated payload before callbacks. Candidate implementation is in PR #16.
+- [ ] Bound direct guarded-tool arguments and returned results by serialized size, depth, and node count; reject cycles/non-JSON values, snapshot validated input before callbacks, and mark an executed callback with an invalid/oversized result as UNKNOWN. Candidate implementation is in PR #16.
 - [ ] Exercise prompt-injection-shaped tool output followed by a prohibited call through a compiled LangGraph ToolNode. Candidate conformance test is in PR #16.
 - [ ] Complete live LLM-driven host evaluation, direct-handler bypass assessment, and a broader MCP protocol/client matrix.
 

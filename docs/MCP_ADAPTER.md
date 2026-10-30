@@ -31,7 +31,7 @@ Candidate PR #16 adds the following defense-in-depth limits and regression tests
 
 - Maximum MCP stdio record length: 1,000,000 characters.
 - Duplicate JSON object keys, NaN/Infinity, exponent-overflow floats, and decoder recursion failures are rejected as parse errors.
-- Generic guarded-tool arguments are limited to 1,000,000 serialized UTF-8 bytes, a nesting depth of 64, and 100,000 JSON nodes.
+- Generic guarded-tool arguments and returned tool results are limited to 1,000,000 serialized UTF-8 bytes, a nesting depth of 64, and 100,000 JSON nodes. A malformed or oversized result after a callback runs is recorded as an unknown outcome and is not returned to the host.
 - Cyclic, non-finite, non-JSON, and oversized arguments fail closed before the action-ID factory or handler is invoked.
 - The adapter snapshots validated JSON before calling trusted callbacks so mutation cannot change the validated payload.
 
