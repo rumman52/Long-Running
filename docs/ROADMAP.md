@@ -45,14 +45,14 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 
 ## M4 — Portable Agent Skill and Controlled Action Boundary
 
-**Status: Bounded-input/result implementation and deterministic LangGraph adversarial regression are on the rebased security candidate branch; code-bearing exact-head CI and dependency audit passed. Independent review/merge and live host qualification remain.**
+**Status: M4 bounded-input/result hardening merged in PR #18; merged-head Python CI and dependency audit passed. PR #19 adds fail-closed ToolSpec metadata reads and checks active-contract permission before validation; exact-head Python CI #41119751437 and dependency audit #41119751536 passed. Independent review and live host qualification remain.
 
 - [x] Bound MCP stdio input length to 1,000,000 characters and JSON nesting to 128; reject duplicate keys, non-finite numbers, exponent overflow, malformed JSON, and excessive nesting. The stdio loop recovers after rejected records.
 - [x] Bound guarded-tool arguments and results to 1,000,000 compact UTF-8 JSON bytes, depth 64, and 100,000 JSON nodes; reject cycles/non-JSON values; snapshot validated arguments before callbacks; record an executed callback with an invalid/oversized result as UNKNOWN.
 - [x] Exercise prompt-injection-shaped tool output followed by a prohibited call through a compiled LangGraph StateGraph/ToolNode using a scripted deterministic agent. The prohibited callback remains uninvoked.
 - [ ] Complete live LLM-driven host evaluation, direct-handler bypass assessment across consumer routes, and a broader MCP protocol/client matrix.
 
-Candidate branch: `security/standalone-boundary-hardening-20261031`. Code-bearing head `a66e9a4f0c30f6d5de8fe91c15640eaadd83cb4c` passed Python CI #41113067617 and dependency audit #41113067648. Independent review/merge and live LLM/host qualification remain separate gates.
+Merged evidence: PR #18 commit `330e5acf3f17e2b0c5b830570b42c85f9a39e07c`; merged-head CI #41114350260 and dependency audit #41114350246 passed. PR #19 head `1320443749ae3dde52b2a1fb32421adc9a48642c` passed Python CI #41119751437 and dependency audit #41119751536. PR #19 remains open for independent review; live LLM/host qualification remains a separate gate.
 
 - [x] Add an Agent Skills-compatible `SKILL.md` with explicit trust-boundary guidance.
 - [x] Define a host-owned tool registry and adapter protocol for proposals, trusted context, decisions, and results.

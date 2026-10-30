@@ -280,3 +280,98 @@ def test_tool_spec_validator_mutation_cannot_change_action_identity_snapshot() -
         assert calls == [{"report": "normalized report"}]
     finally:
         store.close()
+
+
+def test_tool_spec_approval_metadata_mutation_fails_closed() -> None:
+    calls: list[object] = []
+    spec = FakeAsyncToolSpec()
+
+    async def handler(validated: object) -> object:
+        calls.append(validated)
+        return {"sent": True}
+
+    store, adapter = make_adapter(handler, spec)
+    try:
+        spec.approval_required = True
+        result = asyncio.run(
+            adapter.call_tool("report.create", {"report": "Draft"})
+        )
+        assert result.decision == Decision.BLOCK
+        assert "TOOL_REQUIRES_APPROVAL" in result.reason_codes
+        assert spec.validation_calls == 0
+        assert calls == []
+    finally:
+        store.close()
+
+
+def test_unpermitted_tool_is_rejected_before_spec_validation() -> None:
+    calls: list[object] = []
+    spec = FakeAsyncToolSpec()
+
+    async def handler(validated: object) -> object:
+        calls.append(validated)
+        return {"saved": True}
+
+    store = SQLiteEventStore(":memory:")
+    contract = IntentContract(
+        contract_id="async-tool-spec-unpermitted-test",
+        version=1,
+        goal="Do not permit this tool.",
+        permitted_actions=(),
+        prohibited_actions=("report.create",),
+        acceptance_criteria=("No tool runs",),
+    )
+    engine = IntentIntegrityEngine(store, clock=lambda: NOW)
+    engine.start_task(contract)
+
+    def context_provider(active: IntentContract) -> ValidationContext:
+        return ValidationContext(now=NOW, active_contract_version=active.version)
+
+    adapter = AsyncToolSpecAdapter(
+        engine,
+        lambda: contract,
+        context_provider,
+        lambda _task, name, _args: f"{name}:unpermitted",
+    )
+    adapter.register_tool(spec, handler)
+    try:
+        result = asyncio.run(adapter.call_tool("report.create", {"report": "Draft"}))
+        assert result.decision == Decision.BLOCK
+        assert "TOOL_NOT_PERMITTED" in result.reason_codes
+        assert spec.validation_calls == 0
+        assert calls == []
+    finally:
+        store.close()
+
+
+def test_tool_spec_metadata_read_failure_fails_closed() -> None:
+    calls: list[object] = []
+
+    class IntermittentMetadataToolSpec(FakeAsyncToolSpec):
+        fail_approval_read = False
+
+        @property
+        def approval_required(self) -> bool:
+            if self.fail_approval_read:
+                raise RuntimeError("metadata unavailable")
+            return self._approval_required
+
+        @approval_required.setter
+        def approval_required(self, value: bool) -> None:
+            self._approval_required = value
+
+    async def handler(validated: object) -> object:
+        calls.append(validated)
+        return {"saved": True}
+
+    spec = IntermittentMetadataToolSpec()
+    store, adapter = make_adapter(handler, spec)
+    try:
+        spec.fail_approval_read = True
+        result = asyncio.run(adapter.call_tool("report.create", {"report": "Draft"}))
+        assert result.decision == Decision.BLOCK
+        assert "TOOL_METADATA_INVALID" in result.reason_codes
+        assert spec.validation_calls == 0
+        assert calls == []
+    finally:
+        store.close()
