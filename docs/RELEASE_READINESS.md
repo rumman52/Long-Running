@@ -8,7 +8,7 @@ Audited main revision: `0f80f35aed2c820d9eeb780ec1c09c5d28221dc7`
 
 Long-Running is a standalone, framework-neutral Python library. It is not part of, dependent on, or deployed as another agent runtime.
 
-The M6 development-corpus and multi-trial evaluator work is merged. The MCP/guarded-tool input-hardening work has been rebased onto current main on branch `security/standalone-boundary-hardening-20261031`; its exact-head CI and independent review are pending. This audit does not treat candidate-branch code as merged-main functionality.
+The M6 development-corpus and multi-trial evaluator work is merged. The MCP/guarded-tool input-hardening work has been rebased onto current main on branch `security/standalone-boundary-hardening-20261031`; its code-bearing head `a66e9a4f0c30f6d5de8fe91c15640eaadd83cb4c` passed Python CI [#41113067617](https://github.com/rumman52/Long-Running/actions/runs/41113067617) and dependency audit [#41113067648](https://github.com/rumman52/Long-Running/actions/runs/41113067648); independent review is pending. This audit does not treat candidate-branch code as merged-main functionality.
 
 Main-branch evidence at the audited revision:
 
@@ -25,7 +25,7 @@ This is an engineering readiness review, not a production security certification
 | M1 deterministic core | Typed contracts, schema validation, action decisions, unit tests | Independent runtime evaluation |
 | M2 persistence | SQLite event history, checkpoints, migrations, multi-process tests, verified backup/restore | Qualify target OS/filesystem, restore drills, backup target, access controls, and retention policy |
 | M3 recovery | Deterministic drift checks, replay, completion verifier, bounded property tests | Broader independent runtime evaluation |
-| M4 guarded boundary | Portable skill, guarded adapter, MCP JSON-RPC subset, official MCP SDK 2.x smoke test | Candidate hardening needs exact-head CI and independent review; live LLM host tests, direct-handler bypass assessment, and broader MCP client matrix remain |
+| M4 guarded boundary | Portable skill, guarded adapter, MCP JSON-RPC subset, official MCP SDK 2.x smoke test | Code-bearing candidate head passed exact-head CI and dependency audit; independent review, live LLM host tests, direct-handler bypass assessment, and broader MCP client matrix remain |
 | M5 reconciliation | Provider-neutral coordinator and local fault-injection tests | Real provider adapters and provider-specific idempotency/lookup guarantees |
 | M6 semantic drift | Provider-neutral interface, Gemma/Ollama adapter, strict advisory-only output validation, 30 provisional cases, 1–100 trial evaluator | Independent labels, held-out test set, and live Gemma measurements |
 | M7 framework conformance | Generic async ToolSpec adapter, LangGraph ToolNode adapter, compatibility matrix, synthetic evaluation | Broader framework/version matrix and live LLM-driven host qualification |
