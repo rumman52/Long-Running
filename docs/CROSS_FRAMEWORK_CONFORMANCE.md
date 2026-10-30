@@ -76,6 +76,22 @@ tool_node = ToolNode(tools)
 
 A blocked result is returned as structured JSON and the underlying callback is not invoked. The host must decide whether to stop the graph, request approval, or rebuild context after a block. No framework wrapper can prevent a separate unguarded tool from being called.
 
+## Adversarial tool-result regression (security candidate branch)
+
+The security candidate branch adds a compiled LangGraph `StateGraph`/`ToolNode` regression. A deterministic scripted agent first calls a permitted local report tool, consumes a tool result containing prompt-injection-shaped text, and deliberately attempts a prohibited `delete_source` call. The registered guarded adapter blocks the prohibited action before its callback. The original candidate passed CI before rebasing; the current rebased candidate requires fresh exact-head Python CI and dependency-audit runs.
+
+This is a deterministic framework-boundary test using real LangGraph graph and ToolNode components but a scripted agent node. It is not a live LLM test, a deployed-host penetration test, or proof that every consumer route is guarded. The rebased security candidate is not yet merged and requires exact-head CI plus independent review.
+
+## MCP and guarded-tool input boundaries (security candidate branch)
+
+- MCP stdio record length: 1,000,000 characters; JSON container nesting: 128.
+- Duplicate object keys, non-finite numeric constants, exponent overflow, malformed JSON, excessive nesting, and oversized records are rejected; the stdio loop continues to the next record.
+- Guarded-tool arguments and results: 1,000,000 compact UTF-8 JSON bytes, depth 64, and 100,000 JSON nodes.
+- Cycles and non-JSON values are rejected. Validated arguments are snapshotted before the action-ID factory and handler.
+- An invalid/oversized result after callback execution is recorded as an unknown outcome and requires reconciliation before retry.
+
+These controls remain candidate-branch evidence until exact-head CI passes, independent review is complete, and the changes are merged. They do not provide full MCP protocol/client conformance.
+
 ## Evaluation methodology
 
 The frozen scenarios in `benchmarks/m7_scenarios.json` include safe actions, prohibited actions, missing approval, natural-language scope drift, a semantic false positive, a missed semantic signal, and a semantic-provider-unavailable case.

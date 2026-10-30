@@ -11,7 +11,7 @@ It turns important parts of that goal into a **versioned intent contract**, chec
 
 **The core principle is simple: the agent may propose an action; trusted code decides whether that action is allowed to proceed.**
 
-> **Project maturity:** Early-stage, standalone framework-neutral Python library. The M2–M8 implementation includes multi-process SQLite tests, versioned migrations and backup/restore, M5 reconciliation, M6 advisory semantic comparison, official MCP SDK smoke tests, optional async host and LangGraph adapters, M7 synthetic evaluation, and release-readiness documentation. Passing CI, maintainer license sign-off, live Gemma measurements, real-host adversarial qualification, and independent review remain release gates. Optional adapters do not make the core package part of any external agent runtime. See the [implementation roadmap](docs/ROADMAP.md) for evidence-based status.
+> **Project maturity:** Early-stage, standalone framework-neutral Python library. M1–M5 core implementations and local tests are present; M6's 30-case provisional development corpus and bounded multi-trial evaluator are merged on main. The security candidate branch adds bounded MCP/guarded-tool input handling and a compiled LangGraph adversarial regression; exact-head CI and independent review are still required before merge. Live Gemma qualification, independent labels, live-provider qualification, deployment testing, maintainer license sign-off, and independent security review remain release gates. The library is not part of or dependent on any external agent runtime.
 
 ---
 
@@ -96,7 +96,7 @@ The diagram shows the intended integration boundary. It does **not** mean that a
 | **Guarded execution** | A host-owned tool registry and callback gate. The action ID is claimed before execution; duplicate claims fail closed. |
 | **Recovery and context reconstruction** | Restore the active authorized contract, verify checkpoint and event history, replay supported later events, detect invalidated assumptions, and rebuild compact context. |
 | **Completion audit** | Compare acceptance criteria with current-plan step records and host-supplied evidence; unresolved action outcomes prevent a ready completion report. |
-| **Semantic drift (M6)** | Optional provider-neutral semantic comparison with a Gemma/Ollama adapter, strict output validation, advisory-only findings, and a labelled evaluation harness. Live Gemma accuracy has not yet been measured. |
+| **Semantic drift (M6)** | Optional provider-neutral semantic comparison with a Gemma/Ollama adapter, strict output validation, advisory-only findings, a 30-case provisional development dataset, and a 1–100 trial evaluator. Labels are not independently reviewed and live Gemma accuracy has not been measured. |
 | **External outcome reconciliation (M5)** | Provider-neutral operation records, stable idempotency identity, conditional-version metadata, outcome lookup, and guarded retry after an authoritative **NOT_APPLIED** observation. |
 | **Integration examples** | Runnable validation and long-running-task examples, a local reconciliation demo, a portable agent skill, and a minimal MCP stdio scaffold. |
 | **Cross-framework adapters (M7)** | Optional structural async ToolSpec adapter and LangGraph ToolNode adapter, with local conformance tests. No external runtime dependency is required. |
@@ -307,9 +307,9 @@ Milestones are not considered complete merely because a file or interface exists
 | **M1 — Intent contract and deterministic validation** | Implemented in the repository | Verify the latest CI result before release. |
 | **M2 — Runtime state, event history, checkpoints** | Persistence implementation and local multi-process tests added | Deployment-specific filesystem qualification; retention is documented, but automatic pruning is intentionally not implemented. |
 | **M3 — Plan drift and recovery** | Deterministic recovery and bounded property-based tests added | Broader independent evaluation remains. |
-| **M4 — Portable skill and guarded action boundary** | Portable skill, guarded adapter, MCP scaffold, official-SDK smoke test | Full protocol/client matrix and adversarial evaluation against a real agent host remain. |
+| **M4 — Portable skill and guarded action boundary** | Portable skill, guarded adapter, MCP scaffold, official-SDK smoke test; bounded-input hardening is on a candidate branch | Exact-head CI/independent review, full protocol/client matrix, and live host adversarial/bypass evaluation remain. |
 | **M5 — External outcome reconciliation** | Provider-neutral coordinator and local fault-injection tests implemented | Live-provider adapters must be built and qualified against real provider guarantees. |
-| **M6 — Semantic drift and optional Gemma adapter** | Initial implementation and evaluation harness added | Live Gemma measurements on an expanded, independently labelled dataset remain pending. |
+| **M6 — Semantic drift and optional Gemma adapter** | 30-case provisional development corpus and bounded multi-trial evaluator merged | Independent labels, held-out evaluation, and live Gemma measurements remain pending. |
 | **M7 — Cross-framework conformance and evaluation** | Optional async ToolSpec and LangGraph ToolNode adapters, compatibility matrix, and synthetic harness added | Broader framework/version qualification and a reviewed model-backed hybrid run remain pending. |
 | **M8 — Open-source release readiness** | Readiness baseline added on the integration branch | Maintainer license sign-off, independent external review, passing final CI, and a tagged release remain. |
 

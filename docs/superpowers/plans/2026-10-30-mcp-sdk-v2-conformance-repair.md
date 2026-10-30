@@ -36,7 +36,7 @@ The first correction removed the `serverInfo` failure; the next exact-head CI ru
 
 ## Explicitly out of scope
 
-This repair does not claim full MCP protocol conformance, live Shuddho runtime
+This repair does not claim full MCP protocol conformance, live external-host
 integration, real-host adversarial qualification, live Gemma accuracy, an
 independent external security review, maintainer license approval, or a public
 release. Those remain separate acceptance gates in `docs/ROADMAP.md`.

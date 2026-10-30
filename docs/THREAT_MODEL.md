@@ -1,6 +1,6 @@
 # Threat Model
 
-Review date: 2026-10-18  
+Review date: 2026-10-31  
 Review type: Maintainer engineering review of the current implementation. This is not an independent penetration test, security certification, or proof that every host integration is safe.
 
 ## Scope
@@ -54,7 +54,7 @@ This review covers the deterministic validator, intent contract, SQLite event st
 | Malformed serialized input or model output | Strict parsing, typed models, schema checks, bounded semantic output, adversarial tests | Continue fuzzing and review all public deserialization paths |
 | Semantic false positive or missed drift | Optional layer, validated findings, explicit advisory-only semantics, labelled fixture harness | Live Gemma metrics and independent dataset review remain outstanding |
 | Framework adapter bypass | Guarded LangGraph ToolNode wrapper, optional structural async ToolSpec adapter, unknown-tool and blocked-callback tests | Framework tests do not cover every version/provider or every consumer-host route; a consumer can still expose an unguarded path |
-| Hostile JSON and tool arguments | Candidate PR #16 adds bounded line/argument/result sizes, strict duplicate-key and finite-number parsing, depth/node limits, and validated-input snapshotting | Candidate is not yet merged or CI-qualified at this audit; live LLM/host behavior still requires separate testing |
+| Hostile JSON and tool arguments/results | The rebased security candidate branch adds a 1,000,000-character MCP record cap, JSON nesting depth 128, duplicate-key/non-finite rejection, 1,000,000-byte argument/result caps, depth 64, 100,000-node cap, cycle rejection, and validated-input snapshots; exact-head Python CI and dependency audit passed | The rebased candidate still requires fresh exact-head CI and independent review before merge; live LLM host behavior, alternate unguarded routes, and full MCP client conformance remain unqualified. Oversized results after callbacks are recorded UNKNOWN and require reconciliation |
 | Database disclosure or tampering | Operational guidance for least-privilege filesystem access, protected backups, data minimization | SQLite does not provide built-in encryption or per-row authorization |
 | Dependency vulnerability or compromised build action | Minimal runtime dependency set, pip-audit workflow, Dependabot, and workflow actions pinned to verified commit SHAs | Development dependencies are not fully locked; audits are time-bounded and cannot prove the absence of undisclosed vulnerabilities |
 | Secret leakage in logs or examples | Local fake data and demos without production credentials; guidance to avoid secrets in event payloads | Real integrations must implement log redaction and data minimization |
@@ -100,4 +100,9 @@ This review covers the deterministic validator, intent contract, SQLite event st
 
 ## Explicitly unresolved
 
-The implementation is not a universal interception layer, authenticated approval platform, distributed event ledger, production security certification, or universal semantic drift detector. Hash-chain verification is tamper-evident rather than tamper-proof. No live provider qualification, live Gemma benchmark, live LLM-driven host qualification, independent external code review, or public versioned release has been completed. Candidate MCP/tool-input hardening in PR #16 must pass CI and merge before it is treated as part of main. These limitations must remain visible until supported by reproducible evidence.
+The implementation is not a universal interception layer, authenticated approval platform, distributed event ledger, production security certification, or universal semantic drift detector. Hash-chain verification is tamper-evident rather than tamper-proof. No live provider qualification, live Gemma benchmark, live LLM-driven host qualification, independent external code review, or public versioned release has been completed. The input-boundary hardening candidate is not yet merged and must not be treated as main-branch evidence until fresh exact-head CI and independent review pass. Independent review, live LLM-driven host qualification, alternate-route bypass assessment, and full MCP protocol/client conformance remain outstanding. These limitations must remain visible until supported by reproducible evidence.
+
+
+## 2026-10-31 input-boundary candidate addendum
+
+Candidate branch `security/standalone-boundary-hardening-20261031` carries explicit MCP JSON nesting depth 128, strict duplicate-key/non-finite parsing, bounded guarded-tool arguments/results, and a compiled LangGraph adversarial regression with a scripted agent. Fresh exact-head CI and independent review are pending. The scripted agent is not a live model, and the test does not prove that arbitrary consumer hosts have no alternate unguarded tool route.

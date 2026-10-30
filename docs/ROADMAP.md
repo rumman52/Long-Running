@@ -44,12 +44,15 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 - [x] Add a completion verifier that maps each acceptance criterion to host-supplied evidence from current-plan step records, with freshness checks and unresolved-outcome blocking.
 
 ## M4 — Portable Agent Skill and Controlled Action Boundary
-- [ ] Bound MCP stdio input length and reject duplicate JSON keys, non-finite numbers, and excessive JSON nesting. Candidate tests and implementation are in [PR #16](https://github.com/rumman52/Long-Running/pull/16); not yet merged.
-- [ ] Bound direct guarded-tool arguments and returned results by serialized size, depth, and node count; reject cycles/non-JSON values, snapshot validated input before callbacks, and mark an executed callback with an invalid/oversized result as UNKNOWN. Candidate implementation is in PR #16.
-- [ ] Exercise prompt-injection-shaped tool output followed by a prohibited call through a compiled LangGraph ToolNode. Candidate conformance test is in PR #16.
-- [ ] Complete live LLM-driven host evaluation, direct-handler bypass assessment, and a broader MCP protocol/client matrix.
 
-**Status: Adapter, portable skill, MCP stdio scaffold, official-SDK smoke conformance, and LangGraph ToolNode adapter implemented; real-host adversarial qualification remains.**
+**Status: Bounded-input/result implementation and deterministic LangGraph adversarial regression are on the rebased security candidate branch; fresh exact-head CI, independent review/merge, and live host qualification remain.**
+
+- [x] Bound MCP stdio input length to 1,000,000 characters and JSON nesting to 128; reject duplicate keys, non-finite numbers, exponent overflow, malformed JSON, and excessive nesting. The stdio loop recovers after rejected records.
+- [x] Bound guarded-tool arguments and results to 1,000,000 compact UTF-8 JSON bytes, depth 64, and 100,000 JSON nodes; reject cycles/non-JSON values; snapshot validated arguments before callbacks; record an executed callback with an invalid/oversized result as UNKNOWN.
+- [x] Exercise prompt-injection-shaped tool output followed by a prohibited call through a compiled LangGraph StateGraph/ToolNode using a scripted deterministic agent. The prohibited callback remains uninvoked.
+- [ ] Complete live LLM-driven host evaluation, direct-handler bypass assessment across consumer routes, and a broader MCP protocol/client matrix.
+
+Candidate branch: `security/standalone-boundary-hardening-20261031`. The original pre-rebase code passed CI, but fresh exact-head CI and dependency audit are required for this branch. Independent review/merge and live LLM/host qualification remain separate gates.
 
 - [x] Add an Agent Skills-compatible `SKILL.md` with explicit trust-boundary guidance.
 - [x] Define a host-owned tool registry and adapter protocol for proposals, trusted context, decisions, and results.
@@ -57,8 +60,8 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 - [x] Test that blocked actions do not reach the underlying callback.
 - [x] Add malformed-input, unknown-tool, duplicate-claim, and adapter-failure tests.
 - [x] Exercise initialize, tool listing, allowed invocation, and blocked invocation through the official MCP Python SDK (`tests/test_mcp_sdk_conformance.py`). Full protocol conformance across supported clients remains unclaimed.
-- [ ] Add adversarial bypass and prompt-injection evaluation against a real agent host.
-- [x] Add an optional LangGraph ToolNode adapter and execute conformance tests through a compiled ToolNode. A live LLM and broader framework/version matrix are not qualified.
+- [ ] Complete live LLM-driven adversarial evaluation and direct-handler bypass assessment across consumer routes.
+- [x] Add an optional LangGraph ToolNode adapter and execute conformance tests through a compiled ToolNode. The candidate adds a scripted multi-turn adversarial graph test; a live LLM and broader framework/version matrix are not qualified.
 
 ## M5 — External Outcome Reconciliation
 
@@ -77,16 +80,15 @@ without provider metadata remain fail closed. These local tests do not qualify a
 
 ## M6 — Optional Semantic Drift Detection and Gemma Adapter
 
-**Status: Provider interface, validated Gemma/Ollama adapter, 30-case provisional development corpus, and multi-trial evaluator implemented; independent labels and live model qualification remain.**
+**Status: Provider interface, validated Gemma/Ollama adapter, 30-case provisional development corpus, and multi-trial evaluator are merged on main; independent labels and live model qualification remain.**
 
-- [x] Define a provider interface independent of the deterministic validator.
+- [x] Define a provider interface independent of the core validator.
 - [x] Add optional Gemma-based structured plan comparison through an Ollama-compatible endpoint.
-- [x] Validate model output strictly; semantic signals remain advisory and cannot change core validator decisions.
-- [x] Test malformed outputs, refusals, uncertainty, prompt injection, duplicate keys, token metadata, and provider unavailability.
-- [x] Measure precision, recall, false-pause rate, missed-drift rate, mean/p95 latency, and token overhead when usage is reported.
-- [x] Expand the development corpus to 30 authored cases and support 1–100 sequential trials with per-trial and aggregate metrics.
-- [ ] Obtain independent human review of every dataset label, resolve disagreements, and create a held-out test set before publishing accuracy claims.
-- [ ] Run and review live Gemma measurements on that independently labelled dataset. No live model accuracy is claimed.
+- [x] Validate all model output and treat semantic signals as advisory; semantic output cannot change core validator decisions.
+- [x] Test malformed outputs, refusals, uncertainty, prompt injection, invalid references, and model unavailability.
+- [x] Add a labelled starter dataset and reproducible evaluation harness for precision, recall, false-pause rate, missed-drift rate, latency, and token overhead.
+- [x] Expand the development corpus to 30 balanced cases (15 aligned / 15 drift-labelled) and add bounded sequential evaluation trials (1–100) with per-trial and aggregate metrics merged in [PR #17](https://github.com/rumman52/Long-Running/pull/17). Labels are provisional author-assigned development labels, not independent ground truth. Exact-head Python CI #41102632889 and dependency audit #41102633109 passed.
+- [ ] Obtain independent human labels, a held-out test set, and live Gemma measurements before publishing accuracy claims. No Ollama endpoint was available during this audit.
 
 ## M7 — Cross-Framework Conformance and Evaluation
 

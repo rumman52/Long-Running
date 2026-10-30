@@ -121,3 +121,113 @@ def test_unknown_method_returns_json_rpc_error() -> None:
         server, _ = make_server(store)
         reply = server.handle_message({"jsonrpc": "2.0", "id": 4, "method": "tools/delete"})
         assert reply is not None and reply["error"]["code"] == -32601
+
+
+def test_stdio_rejects_non_finite_json_constants_and_continues() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, _ = make_server(store)
+        output = StringIO()
+        invalid_requests = (
+            '{"jsonrpc":"2.0","id":1,"method":"ping","params":{"n":NaN}}\n'
+            '{"jsonrpc":"2.0","id":2,"method":"ping","params":{"n":Infinity}}\n'
+            '{"jsonrpc":"2.0","id":3,"method":"ping","params":{"n":-Infinity}}\n'
+            '{"jsonrpc":"2.0","id":4,"method":"ping","params":{"n":1e999}}\n'
+        )
+        server.serve_stdio(
+            StringIO(invalid_requests + '{"jsonrpc":"2.0","id":5,"method":"ping"}\n'),
+            output,
+        )
+        replies = [json.loads(line) for line in output.getvalue().splitlines()]
+        assert [reply["error"]["code"] for reply in replies[:4]] == [-32700] * 4
+        assert replies[4]["result"] == {}
+
+
+def test_stdio_rejects_duplicate_json_object_keys() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, _ = make_server(store)
+        output = StringIO()
+        server.serve_stdio(
+            StringIO(
+                '{"jsonrpc":"2.0","id":1,"method":"ping","method":"initialize"}\n'
+            ),
+            output,
+        )
+        reply = json.loads(output.getvalue())
+        assert reply["error"]["code"] == -32700
+
+
+def test_stdio_rejects_duplicate_keys_inside_nested_objects() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, _ = make_server(store)
+        output = StringIO()
+        server.serve_stdio(
+            StringIO(
+                '{"jsonrpc":"2.0","id":1,"method":"ping","params":'
+                '{"nested":{"mode":"safe","mode":"unsafe"}}}\n'
+                '{"jsonrpc":"2.0","id":2,"method":"ping"}\n'
+            ),
+            output,
+        )
+        replies = [json.loads(line) for line in output.getvalue().splitlines()]
+        assert replies[0]["error"]["code"] == -32700
+        assert replies[1]["result"] == {}
+
+
+def test_stdio_rejects_oversized_line_and_processes_next_request() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, _ = make_server(store)
+        oversized = (
+            '{"jsonrpc":"2.0","id":1,"method":"ping","params":{"padding":"'
+            + ("x" * 1_000_001)
+            + '"}}\n'
+        )
+        output = StringIO()
+        server.serve_stdio(
+            StringIO(oversized + '{"jsonrpc":"2.0","id":2,"method":"ping"}\n'),
+            output,
+        )
+        replies = [json.loads(line) for line in output.getvalue().splitlines()]
+        assert replies[0]["error"]["code"] == -32600
+        assert replies[1]["result"] == {}
+
+
+def test_stdio_rejects_excessive_json_nesting_and_continues() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, _ = make_server(store)
+        deeply_nested = "[" * 1_200 + "0" + "]" * 1_200
+        output = StringIO()
+        server.serve_stdio(
+            StringIO(
+                '{"jsonrpc":"2.0","id":1,"method":"ping","params":{"nested":'
+                + deeply_nested
+                + '}}\n{"jsonrpc":"2.0","id":2,"method":"ping"}\n'
+            ),
+            output,
+        )
+        replies = [json.loads(line) for line in output.getvalue().splitlines()]
+        assert replies[0]["error"]["code"] == -32700
+        assert replies[1]["result"] == {}
+
+def test_stdio_ignores_deep_brackets_inside_json_strings() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, _ = make_server(store)
+        payload = 'quoted "text" with slash \\\\ ' + "[" * 1_200 + "]" * 1_200
+        request = json.dumps(
+            {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {"text": payload}}
+        )
+        output = StringIO()
+        server.serve_stdio(StringIO(request + "\n"), output)
+        reply = json.loads(output.getvalue())
+        assert reply["result"] == {}
+
+
+def test_handle_message_rejects_non_finite_request_id() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, _ = make_server(store)
+        for request_id in (float("nan"), float("inf"), float("-inf")):
+            reply = server.handle_message(
+                {"jsonrpc": "2.0", "id": request_id, "method": "ping"}
+            )
+            assert reply is not None
+            assert reply["error"]["code"] == -32600
+            assert reply["id"] is None
