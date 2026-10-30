@@ -11,7 +11,7 @@ It turns important parts of that goal into a **versioned intent contract**, chec
 
 **The core principle is simple: the agent may propose an action; trusted code decides whether that action is allowed to proceed.**
 
-> **Project maturity:** Early-stage engineering implementation. The M2–M8 integration branch includes multi-process SQLite tests, versioned migrations and backup/restore, M5 reconciliation, M6 advisory semantic comparison, official MCP SDK smoke tests, a LangGraph ToolNode adapter, M7 synthetic evaluation, and M8 release-readiness documentation. Passing CI, maintainer license sign-off, live Gemma measurements, deployed Shuddho runtime wiring, and independent review remain release gates. See the [implementation roadmap](docs/ROADMAP.md) for evidence-based status.
+> **Project maturity:** Early-stage, standalone framework-neutral Python library. The M2–M8 implementation includes multi-process SQLite tests, versioned migrations and backup/restore, M5 reconciliation, M6 advisory semantic comparison, official MCP SDK smoke tests, optional async host and LangGraph adapters, M7 synthetic evaluation, and release-readiness documentation. Passing CI, maintainer license sign-off, live Gemma measurements, real-host adversarial qualification, and independent review remain release gates. Optional adapters do not make the core package part of any external agent runtime. See the [implementation roadmap](docs/ROADMAP.md) for evidence-based status.
 
 ---
 
@@ -99,7 +99,7 @@ The diagram shows the intended integration boundary. It does **not** mean that a
 | **Semantic drift (M6)** | Optional provider-neutral semantic comparison with a Gemma/Ollama adapter, strict output validation, advisory-only findings, and a labelled evaluation harness. Live Gemma accuracy has not yet been measured. |
 | **External outcome reconciliation (M5)** | Provider-neutral operation records, stable idempotency identity, conditional-version metadata, outcome lookup, and guarded retry after an authoritative **NOT_APPLIED** observation. |
 | **Integration examples** | Runnable validation and long-running-task examples, a local reconciliation demo, a portable agent skill, and a minimal MCP stdio scaffold. |
-| **Cross-framework adapters (M7)** | Optional LangGraph ToolNode adapter and Shuddho bridge for non-consequential async tools; live Shuddho runtime wiring remains pending. |
+| **Cross-framework adapters (M7)** | Optional structural async ToolSpec adapter and LangGraph ToolNode adapter, with local conformance tests. No external runtime dependency is required. |
 | **Evaluation (M7)** | Reproducible unmonitored/deterministic/hybrid comparison with safety, recovery, latency, token-usage, and adapter-surface bypass metrics. Fixture mode is synthetic. |
 | **Engineering checks** | Pytest, Ruff, mypy, official MCP SDK smoke conformance, LangGraph ToolNode conformance, M7 fixture evaluation, and a `pip-audit` workflow. CI supports Python 3.11–3.14; Python 3.15 is best-effort. |
 
@@ -310,7 +310,7 @@ Milestones are not considered complete merely because a file or interface exists
 | **M4 — Portable skill and guarded action boundary** | Portable skill, guarded adapter, MCP scaffold, official-SDK smoke test | Full protocol/client matrix and adversarial evaluation against a real agent host remain. |
 | **M5 — External outcome reconciliation** | Provider-neutral coordinator and local fault-injection tests implemented | Live-provider adapters must be built and qualified against real provider guarantees. |
 | **M6 — Semantic drift and optional Gemma adapter** | Initial implementation and evaluation harness added | Live Gemma measurements on an expanded, independently labelled dataset remain pending. |
-| **M7 — Cross-framework conformance and evaluation** | Shuddho bridge, LangGraph ToolNode adapter, compatibility matrix, and synthetic harness added | Live Shuddho runtime wiring and a reviewed model-backed hybrid run remain pending. |
+| **M7 — Cross-framework conformance and evaluation** | Optional async ToolSpec and LangGraph ToolNode adapters, compatibility matrix, and synthetic harness added | Broader framework/version qualification and a reviewed model-backed hybrid run remain pending. |
 | **M8 — Open-source release readiness** | Readiness baseline added on the integration branch | Maintainer license sign-off, independent external review, passing final CI, and a tagged release remain. |
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone acceptance criteria and the current checklist. The project does not claim universal drift detection, production readiness, or independently verified security.
@@ -351,7 +351,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for milestone acceptance criteria and the
 ├── schemas/intent-contract.schema.json
 ├── skills/intent-integrity/SKILL.md
 ├── src/intent_integrity/
-│   ├── integrations/              # Shuddho and optional LangGraph bridges
+│   ├── integrations/              # Optional host and LangGraph bridges
 │   └── ...                        # Core validation, recovery, storage, and adapters
 ├── tests/
 │   ├── conformance/
