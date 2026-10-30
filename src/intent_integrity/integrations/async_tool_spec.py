@@ -29,6 +29,9 @@ ContractProvider = Callable[[], IntentContract]
 ContextProvider = Callable[[IntentContract], ValidationContext]
 ActionIdFactory = Callable[[str, str, Mapping[str, object]], str]
 AsyncToolHandler = Callable[[object], Awaitable[object]]
+RegisteredTool = tuple[
+    AsyncToolSpec, Callable[[dict[str, object]], object], AsyncToolHandler
+]
 
 
 class AsyncToolSpec(Protocol):
@@ -87,7 +90,7 @@ class AsyncToolSpecAdapter:
         self._contract_provider = contract_provider
         self._context_provider = context_provider
         self._action_id_factory = action_id_factory
-        self._tools: dict[str, tuple[AsyncToolSpec, Callable[[dict[str, object]], object], AsyncToolHandler]] = {}
+        self._tools: dict[str, RegisteredTool] = {}
 
     def register_tool(self, spec: AsyncToolSpec, handler: AsyncToolHandler) -> None:
         """Register a trusted ToolSpec and its asynchronous execution handler."""
