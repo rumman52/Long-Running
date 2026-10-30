@@ -288,10 +288,10 @@ def test_oversized_tool_result_becomes_unknown_after_handler_execution() -> None
     with SQLiteEventStore(":memory:") as store:
         adapter, calls = make_adapter(store, oversized_result=True)
         result = adapter.call_tool("save_report", {"report": "Quarterly"})
-        assert result.decision == Decision.BLOCK
+        assert result.decision == Decision.ALLOW
         assert result.executed is False
         assert result.outcome_unknown is True
-        assert "ENGINE_FAILURE_OUTCOME_UNKNOWN" in result.reason_codes
+        assert "ACTION_OUTCOME_UNKNOWN" in result.reason_codes
         assert calls == [{"report": "Quarterly"}]
         event_types = {
             record.event.event_type.value

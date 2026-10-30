@@ -355,10 +355,15 @@ class GuardedToolAdapter:
                 False,
                 outcome_unknown=True,
             )
+        reason_codes = outcome.validation.reason_codes
+        details = outcome.validation.details
+        if outcome.outcome_unknown:
+            reason_codes = (*reason_codes, "ACTION_OUTCOME_UNKNOWN")
+            details = (*details, "The callback outcome is unknown; reconcile before retrying.")
         return ToolCallResult(
             outcome.validation.decision,
-            outcome.validation.reason_codes,
-            outcome.validation.details,
+            reason_codes,
+            details,
             outcome.executed,
             outcome.value if outcome.executed else None,
             outcome.outcome_unknown,
