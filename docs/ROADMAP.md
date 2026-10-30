@@ -44,6 +44,10 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 - [x] Add a completion verifier that maps each acceptance criterion to host-supplied evidence from current-plan step records, with freshness checks and unresolved-outcome blocking.
 
 ## M4 — Portable Agent Skill and Controlled Action Boundary
+- [ ] Bound MCP stdio input length and reject duplicate JSON keys, non-finite numbers, and excessive JSON nesting. Candidate tests and implementation are in [PR #16](https://github.com/rumman52/Long-Running/pull/16); not yet merged.
+- [ ] Bound direct guarded-tool arguments by serialized size, depth, and node count; reject cycles/non-JSON values and snapshot the validated payload before callbacks. Candidate implementation is in PR #16.
+- [ ] Exercise prompt-injection-shaped tool output followed by a prohibited call through a compiled LangGraph ToolNode. Candidate conformance test is in PR #16.
+- [ ] Complete live LLM-driven host evaluation, direct-handler bypass assessment, and a broader MCP protocol/client matrix.
 
 **Status: Adapter, portable skill, MCP stdio scaffold, official-SDK smoke conformance, and LangGraph ToolNode adapter implemented; real-host adversarial qualification remains.**
 
