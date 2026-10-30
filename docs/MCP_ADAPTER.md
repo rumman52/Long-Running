@@ -25,7 +25,7 @@ This demonstration uses fake local callbacks and a temporary SQLite database. It
 
 ## Input-boundary hardening status
 
-The security candidate branch `security/standalone-boundary-hardening-20261031` is based on main revision `0f80f35aed2c820d9eeb780ec1c09c5d28221dc7`. It carries the bounded-input implementation and adversarial LangGraph regression described below. Exact-head CI is pending on the rebased candidate; independent security review and merge remain required.
+The security candidate branch `security/standalone-boundary-hardening-20261031` is based on main revision `0f80f35aed2c820d9eeb780ec1c09c5d28221dc7`. It carries the bounded-input implementation and adversarial LangGraph regression described below. The code-bearing head `a66e9a4f0c30f6d5de8fe91c15640eaadd83cb4c` passed Python CI [#41113067617](https://github.com/rumman52/Long-Running/actions/runs/41113067617) and dependency audit [#41113067648](https://github.com/rumman52/Long-Running/actions/runs/41113067648). Independent security review and merge remain required; later documentation-only commits must retain passing exact-head checks.
 
 Candidate behavior:
 
