@@ -104,3 +104,11 @@
 - Dependency audit: [#41104798516](https://github.com/rumman52/Long-Running/actions/runs/41104798516) — success.
 - the rebased candidate requires fresh exact-head CI and independent review; no independent review has been submitted.
 - This plan records candidate-branch evidence only. It does not claim full MCP protocol conformance, live LLM host security, provider qualification, or production certification.
+
+
+## Rebased candidate verification addendum — 2026-10-31
+
+- Rebased code-bearing head: `a66e9a4f0c30f6d5de8fe91c15640eaadd83cb4c`.
+- Python CI [#41113067617](https://github.com/rumman52/Long-Running/actions/runs/41113067617): success.
+- Dependency audit [#41113067648](https://github.com/rumman52/Long-Running/actions/runs/41113067648): success.
+- The candidate remains unmerged and requires independent security review. The scripted LangGraph test is not live-LLM or deployed-host qualification.
