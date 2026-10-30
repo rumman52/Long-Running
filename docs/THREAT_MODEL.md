@@ -5,7 +5,7 @@ Review type: Maintainer engineering review of the current implementation. This i
 
 ## Scope
 
-This review covers the deterministic validator, intent contract, SQLite event store and checkpoints, recovery flow, guarded tool adapter, MCP stdio server, external-outcome reconciliation interfaces, optional semantic comparator, Shuddho bridge, LangGraph adapter, evaluation harness, dependencies, CI, and release process.
+This review covers the deterministic validator, intent contract, SQLite event store and checkpoints, recovery flow, guarded tool adapter, MCP stdio server, external-outcome reconciliation interfaces, optional semantic comparator, structural async ToolSpec adapter, LangGraph adapter, evaluation harness, dependencies, CI, and release process.
 
 ## Security objectives
 
@@ -53,7 +53,8 @@ This review covers the deterministic validator, intent contract, SQLite event st
 | Event/checkpoint tampering | SHA-256 hash chain, state hashes, integrity checks, backup/restore verification | Full-database rewrite and hash recomputation are not prevented; no external signing/anchor exists |
 | Malformed serialized input or model output | Strict parsing, typed models, schema checks, bounded semantic output, adversarial tests | Continue fuzzing and review all public deserialization paths |
 | Semantic false positive or missed drift | Optional layer, validated findings, explicit advisory-only semantics, labelled fixture harness | Live Gemma metrics and independent dataset review remain outstanding |
-| Framework adapter bypass | Guarded LangGraph ToolNode wrapper, Shuddho bridge, unknown-tool and blocked-callback tests | LangGraph tests do not cover every version/provider; Shuddho bridge is not yet wired into the deployed runtime |
+| Framework adapter bypass | Guarded LangGraph ToolNode wrapper, optional structural async ToolSpec adapter, unknown-tool and blocked-callback tests | Framework tests do not cover every version/provider or every consumer-host route; a consumer can still expose an unguarded path |
+| Hostile JSON and tool arguments | Candidate PR #16 adds bounded line/argument/result sizes, strict duplicate-key and finite-number parsing, depth/node limits, and validated-input snapshotting | Candidate is not yet merged or CI-qualified at this audit; live LLM/host behavior still requires separate testing |
 | Database disclosure or tampering | Operational guidance for least-privilege filesystem access, protected backups, data minimization | SQLite does not provide built-in encryption or per-row authorization |
 | Dependency vulnerability or compromised build action | Minimal runtime dependency set, pip-audit workflow, Dependabot, and workflow actions pinned to verified commit SHAs | Development dependencies are not fully locked; audits are time-bounded and cannot prove the absence of undisclosed vulnerabilities |
 | Secret leakage in logs or examples | Local fake data and demos without production credentials; guidance to avoid secrets in event payloads | Real integrations must implement log redaction and data minimization |
@@ -67,7 +68,7 @@ This review covers the deterministic validator, intent contract, SQLite event st
 - Host-supplied context/evidence/approval providers, tool registries, action-category mappings, and callbacks.
 - MCP stdio message parsing and tool argument validation.
 - Optional semantic provider request/response handling.
-- Shuddho and LangGraph framework adapters.
+- Optional async ToolSpec and LangGraph framework adapters.
 - SQLite database, WAL/SHM sidecars, backups, restore targets, and schema migrations.
 - Python package installation, transitive dependencies, GitHub Actions, repository permissions, and release/tag operations.
 
@@ -80,7 +81,7 @@ This review covers the deterministic validator, intent contract, SQLite event st
 - Exercise the full MCP lifecycle through the official SDK and expand the client/version matrix before claiming broad conformance.
 - Attempt to bypass every tool route exposed by the actual host, including direct handler access and alternate framework tools.
 - Test prompt injection in untrusted documents, tool results, and model-generated plans.
-- Test the deployed Shuddho integration at its final execution boundary; adapter-only tests are not deployment evidence.
+- Consumers adopting an adapter must test it at their own final execution boundary; adapter-only tests are not deployment evidence.
 - Run a live Gemma evaluation on an expanded, independently labelled dataset and publish per-case results, model identity, latency, token usage, and metric definitions.
 - Review logging for secrets and unnecessary personal data.
 - Run dependency audits and review dependency/action updates.
@@ -93,10 +94,10 @@ This review covers the deterministic validator, intent contract, SQLite event st
 - Use provider-side idempotency keys, conditional writes, and authoritative outcome lookup where supported.
 - Restrict access to the SQLite database and sidecar files; protect backups; establish an organization-approved retention schedule.
 - Follow [Persistence Operations](PERSISTENCE_OPERATIONS.md) for migrations, verified backups/restores, and retention decisions.
-- Keep CI permissions least-privileged; workflow actions are pinned to commit SHAs on the M2–M8 integration branch.
+- Keep CI permissions least-privileged; workflow actions are pinned to commit SHAs on main.
 - Keep secrets out of prompts, event payloads, benchmark fixtures, and logs.
 - Revisit this threat model when adding provider adapters, semantic providers, persistence changes, or new framework integrations.
 
 ## Explicitly unresolved
 
-The implementation is not a universal interception layer, authenticated approval platform, distributed event ledger, production security certification, or universal semantic drift detector. Hash-chain verification is tamper-evident rather than tamper-proof. No live provider qualification, live Gemma benchmark, deployed Shuddho runtime integration, independent external code review, or public versioned release has been completed. These limitations must remain visible until supported by reproducible evidence.
+The implementation is not a universal interception layer, authenticated approval platform, distributed event ledger, production security certification, or universal semantic drift detector. Hash-chain verification is tamper-evident rather than tamper-proof. No live provider qualification, live Gemma benchmark, live LLM-driven host qualification, independent external code review, or public versioned release has been completed. Candidate MCP/tool-input hardening in PR #16 must pass CI and merge before it is treated as part of main. These limitations must remain visible until supported by reproducible evidence.

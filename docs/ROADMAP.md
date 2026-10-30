@@ -44,6 +44,10 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 - [x] Add a completion verifier that maps each acceptance criterion to host-supplied evidence from current-plan step records, with freshness checks and unresolved-outcome blocking.
 
 ## M4 — Portable Agent Skill and Controlled Action Boundary
+- [ ] Bound MCP stdio input length and reject duplicate JSON keys, non-finite numbers, and excessive JSON nesting. Candidate tests and implementation are in [PR #16](https://github.com/rumman52/Long-Running/pull/16); not yet merged.
+- [ ] Bound direct guarded-tool arguments and returned results by serialized size, depth, and node count; reject cycles/non-JSON values, snapshot validated input before callbacks, and mark an executed callback with an invalid/oversized result as UNKNOWN. Candidate implementation is in PR #16.
+- [ ] Exercise prompt-injection-shaped tool output followed by a prohibited call through a compiled LangGraph ToolNode. Candidate conformance test is in PR #16.
+- [ ] Complete live LLM-driven host evaluation, direct-handler bypass assessment, and a broader MCP protocol/client matrix.
 
 **Status: Adapter, portable skill, MCP stdio scaffold, official-SDK smoke conformance, and LangGraph ToolNode adapter implemented; real-host adversarial qualification remains.**
 
@@ -84,14 +88,14 @@ without provider metadata remain fail closed. These local tests do not qualify a
 
 ## M7 — Cross-Framework Conformance and Evaluation
 
-**Status: Adapter-level conformance and synthetic evaluation implemented; live-host qualification remains.**
+**Status: Optional adapter-level conformance and synthetic evaluation implemented; broader framework and model-backed qualification remain.**
 
-- [x] Add a Shuddho consumer bridge for non-consequential asynchronous ToolSpec handlers. Consequential and approval-required tools remain on Shuddho's native approved-action and provider-reconciliation path.
-- [x] Add an optional LangGraph ToolNode adapter and a framework-level conformance test.
-- [x] Publish adapter conformance tests and a compatibility matrix in Cross-Framework Conformance and Evaluation.
+- [x] Add an optional structural async ToolSpec consumer adapter with local contract tests. It has no runtime dependency on an external host package and is not required to use the standalone core library.
+- [x] Add an optional LangGraph ToolNode adapter and execute conformance tests through a compiled ToolNode.
+- [x] Publish adapter conformance tests and a compatibility matrix in [Cross-Framework Conformance and Evaluation](CROSS_FRAMEWORK_CONFORMANCE.md).
 - [x] Add a reproducible comparison of unmonitored, deterministic-only, and hybrid approaches. CI uses frozen fixture signals; the harness can also run with the M6 Gemma/Ollama provider.
 - [x] Calculate unsafe actions prevented, task success, false blocks, ambiguous-outcome recovery quality, local invocation overhead, semantic latency/token usage when a provider reports them, and registered-adapter bypass resistance.
-- [ ] Wire the Shuddho bridge into the deployed Shuddho runtime and verify every consequential tool path; adapter tests alone do not prove live integration.
+- [ ] Expand the supported framework/version matrix and qualify a live LLM-driven host integration before making broader compatibility claims.
 - [ ] Run and review M7 with a live Gemma provider on an expanded, independently labelled scenario set. Live semantic metrics remain unmeasured.
 
 ## M8 — Open-Source Release Readiness
