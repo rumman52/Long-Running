@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping
 from typing import TextIO
 
@@ -9,6 +10,27 @@ from intent_integrity.adapter import GuardedToolAdapter
 from intent_integrity.models import Decision
 
 SUPPORTED_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
+MAX_MESSAGE_CHARS = 1_000_000
+
+
+def _reject_json_constant(value: str) -> object:
+    raise ValueError(f"Non-standard JSON numeric constant: {value}")
+
+
+def _parse_finite_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError("JSON numbers must be finite")
+    return parsed
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"Duplicate JSON object key: {key}")
+        result[key] = value
+    return result
 
 
 class MCPStdioServer:
@@ -37,7 +59,11 @@ class MCPStdioServer:
             return self._error(request_id, -32600, "Invalid Request")
         if has_id and (
             request_id is not None
-            and (not isinstance(request_id, (str, int, float)) or type(request_id) is bool)
+            and (
+                not isinstance(request_id, (str, int, float))
+                or type(request_id) is bool
+                or (isinstance(request_id, float) and not math.isfinite(request_id))
+            )
         ):
             return self._error(None, -32600, "Invalid Request")
         if not has_id:
@@ -98,18 +124,42 @@ class MCPStdioServer:
         return self._error(request_id, -32601, "Method not found")
 
     def serve_stdio(self, input_stream: TextIO, output_stream: TextIO) -> None:
-        """Read one JSON-RPC message per line; stdout contains protocol messages only."""
-        for line in input_stream:
-            if not line.strip():
+        """Serve bounded newline-delimited JSON-RPC; stdout contains protocol messages only."""
+        while True:
+            line = input_stream.readline(MAX_MESSAGE_CHARS + 1)
+            if line == "":
+                break
+
+            if len(line) > MAX_MESSAGE_CHARS:
+                # Consume the rest of this record so a following valid request remains usable.
+                if not line.endswith("\n"):
+                    while True:
+                        remainder = input_stream.readline(MAX_MESSAGE_CHARS + 1)
+                        if remainder == "" or remainder.endswith("\n"):
+                            break
+                response = self._error(None, -32600, "Request exceeds maximum message size")
+            elif not line.strip():
                 continue
-            try:
-                message = json.loads(line)
-                response = self.handle_message(message)
-            except json.JSONDecodeError:
-                response = self._error(None, -32700, "Parse error")
+            else:
+                try:
+                    message = json.loads(
+                        line,
+                        parse_constant=_reject_json_constant,
+                        parse_float=_parse_finite_float,
+                        object_pairs_hook=_reject_duplicate_keys,
+                    )
+                    response = self.handle_message(message)
+                except (json.JSONDecodeError, ValueError, RecursionError):
+                    response = self._error(None, -32700, "Parse error")
+
             if response is not None:
                 output_stream.write(
-                    json.dumps(response, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+                    json.dumps(
+                        response,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                        allow_nan=False,
+                    )
                     + "\n"
                 )
                 output_stream.flush()
