@@ -14,14 +14,14 @@ MCP Python SDK 2.3.0 Pydantic model. The SDK v2 migration exposes negotiated
 server metadata through `ClientSession.server_info`.
 
 The failing run reported 116 passed, 1 failed, and 1 skipped on Python 3.11.
-The same failure occurred on Python 3.12–3.15.
+The first correction removed the `serverInfo` failure; the next exact-head CI run then exposed the second stale camelCase access, `CallToolResult.isError`. The v2 client requires `is_error`. The original failure occurred on Python 3.11–3.15.
 
 ## Implementation decisions
 
 - Keep the MCP server implementation unchanged; the wire response was valid.
 - Target the current MCP Python SDK v2 API explicitly in the development extra.
 - Read the negotiated server metadata from `session.server_info` after
-  `session.initialize()`, and assert both the server name and version.
+  `session.initialize()`, and assert both the server name and version, and inspect allowed/blocked call outcomes through `CallToolResult.is_error`.
 - Update MCP adapter documentation to distinguish the focused SDK smoke test
   from full protocol conformance and to remove stale statements about already
   implemented persistence/framework tests.
