@@ -280,3 +280,25 @@ def test_tool_spec_validator_mutation_cannot_change_action_identity_snapshot() -
         assert calls == [{"report": "normalized report"}]
     finally:
         store.close()
+
+
+def test_tool_spec_approval_metadata_mutation_fails_closed() -> None:
+    calls: list[object] = []
+    spec = FakeAsyncToolSpec()
+
+    async def handler(validated: object) -> object:
+        calls.append(validated)
+        return {"sent": True}
+
+    store, adapter = make_adapter(handler, spec)
+    try:
+        spec.approval_required = True
+        result = asyncio.run(
+            adapter.call_tool("report.create", {"report": "Draft"})
+        )
+        assert result.decision == Decision.BLOCK
+        assert "TOOL_REQUIRES_APPROVAL" in result.reason_codes
+        assert spec.validation_calls == 0
+        assert calls == []
+    finally:
+        store.close()

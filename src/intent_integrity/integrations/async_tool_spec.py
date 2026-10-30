@@ -43,6 +43,11 @@ class AsyncToolSpec(Protocol):
         ...
 
 
+RegisteredTool = tuple[
+    AsyncToolSpec, Callable[[dict[str, object]], object], AsyncToolHandler
+]
+
+
 def _snapshot_bounded_json(
     value: object,
     *,
@@ -87,7 +92,7 @@ class AsyncToolSpecAdapter:
         self._contract_provider = contract_provider
         self._context_provider = context_provider
         self._action_id_factory = action_id_factory
-        self._tools: dict[str, tuple[Callable[[dict[str, object]], object], AsyncToolHandler]] = {}
+        self._tools: dict[str, RegisteredTool] = {}
 
     def register_tool(self, spec: AsyncToolSpec, handler: AsyncToolHandler) -> None:
         """Register a trusted ToolSpec and its asynchronous execution handler."""
@@ -111,7 +116,7 @@ class AsyncToolSpecAdapter:
         if spec.name in self._tools:
             raise ValueError(f"ToolSpec {spec.name!r} is already registered")
         validator = spec.validate
-        self._tools[spec.name] = (validator, handler)
+        self._tools[spec.name] = (spec, validator, handler)
 
     @staticmethod
     def _blocked(code: str, detail: str) -> ToolCallResult:
@@ -135,7 +140,24 @@ class AsyncToolSpecAdapter:
                 "MALFORMED_INPUT", "Tool arguments must be a JSON object."
             )
 
-        validator, handler = registered
+        spec, validator, handler = registered
+        if spec.name != name:
+            return self._blocked(
+                "TOOL_METADATA_CHANGED",
+                "Registered ToolSpec name changed; re-register the tool before use.",
+            )
+        if not isinstance(spec.consequential, bool) or not isinstance(
+            spec.approval_required, bool
+        ):
+            return self._blocked(
+                "TOOL_METADATA_INVALID",
+                "ToolSpec approval metadata is invalid; execution is blocked.",
+            )
+        if spec.consequential or spec.approval_required:
+            return self._blocked(
+                "TOOL_REQUIRES_APPROVAL",
+                "ToolSpec approval metadata changed after registration; execution is blocked.",
+            )
         try:
             raw_snapshot = _snapshot_bounded_json(arguments, label="Tool arguments")
             if not isinstance(raw_snapshot, dict):
