@@ -29,9 +29,6 @@ ContractProvider = Callable[[], IntentContract]
 ContextProvider = Callable[[IntentContract], ValidationContext]
 ActionIdFactory = Callable[[str, str, Mapping[str, object]], str]
 AsyncToolHandler = Callable[[object], Awaitable[object]]
-RegisteredTool = tuple[
-    AsyncToolSpec, Callable[[dict[str, object]], object], AsyncToolHandler
-]
 
 
 class AsyncToolSpec(Protocol):
@@ -44,6 +41,11 @@ class AsyncToolSpec(Protocol):
     def validate(self, arguments: dict[str, object]) -> object:
         """Return a validated, JSON-compatible argument value."""
         ...
+
+
+RegisteredTool = tuple[
+    AsyncToolSpec, Callable[[dict[str, object]], object], AsyncToolHandler
+]
 
 
 def _snapshot_bounded_json(
