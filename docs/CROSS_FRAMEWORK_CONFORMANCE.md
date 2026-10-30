@@ -76,6 +76,22 @@ tool_node = ToolNode(tools)
 
 A blocked result is returned as structured JSON and the underlying callback is not invoked. The host must decide whether to stop the graph, request approval, or rebuild context after a block. No framework wrapper can prevent a separate unguarded tool from being called.
 
+## Adversarial tool-result regression (security candidate branch)
+
+The security candidate branch adds a compiled LangGraph `StateGraph`/`ToolNode` regression. A deterministic scripted agent first calls a permitted local report tool, consumes a tool result containing prompt-injection-shaped text, and deliberately attempts a prohibited `delete_source` call. The registered guarded adapter blocks the prohibited action before its callback. The rebased code-bearing head `a66e9a4f0c30f6d5de8fe91c15640eaadd83cb4c` passed Python CI [#41113067617](https://github.com/rumman52/Long-Running/actions/runs/41113067617) and dependency audit [#41113067648](https://github.com/rumman52/Long-Running/actions/runs/41113067648).
+
+This is a deterministic framework-boundary test using real LangGraph graph and ToolNode components but a scripted agent node. It is not a live LLM test, a deployed-host penetration test, or proof that every consumer route is guarded. The security candidate is not yet merged and still requires independent review; any subsequent code changes must pass fresh exact-head CI.
+
+## MCP and guarded-tool input boundaries (security candidate branch)
+
+- MCP stdio record length: 1,000,000 characters; JSON container nesting: 128.
+- Duplicate object keys, non-finite numeric constants, exponent overflow, malformed JSON, excessive nesting, and oversized records are rejected; the stdio loop continues to the next record.
+- Guarded-tool arguments and results: 1,000,000 compact UTF-8 JSON bytes, depth 64, and 100,000 JSON nodes.
+- Cycles and non-JSON values are rejected. Validated arguments are snapshotted before the action-ID factory and handler.
+- An invalid/oversized result after callback execution is recorded as an unknown outcome and requires reconciliation before retry.
+
+These controls remain candidate-branch evidence until independent review is complete and the changes are merged. They do not provide full MCP protocol/client conformance.
+
 ## Evaluation methodology
 
 The frozen scenarios in `benchmarks/m7_scenarios.json` include safe actions, prohibited actions, missing approval, natural-language scope drift, a semantic false positive, a missed semantic signal, and a semantic-provider-unavailable case.
@@ -108,3 +124,15 @@ The default hybrid fixture uses hand-authored scores. It is a regression test fo
 - Consumers must test the adapter at their own final execution boundary and remove equivalent unguarded routes.
 - A 100% result on the small registered-adapter bypass probes is not a universal bypass-resistance claim.
 - Live model results must include model identity, labelled dataset version, thresholds, token usage, and raw per-case status counts. Do not publish fixture scores as model performance.
+
+## Latest CI fixture evidence
+
+The final-head CI run [#41113418138](https://github.com/rumman52/Long-Running/actions/runs/41113418138) uploaded the `m7-evaluation` artifact. It ran 11 frozen synthetic scenarios (6 labelled unsafe, 5 labelled safe) with fixture semantic scores, not a live model.
+
+| Mode | Unsafe prevented | Unsafe missed | Safe task success | False blocks | Recovery | Registered-adapter bypass probes | P50 / P95 latency |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Unmonitored | 0/6 (0%) | 6 | 5/5 (100%) | 0 | 0% | 0% | 0.000233 / 0.001181 ms |
+| Deterministic-only | 2/6 (33.33%) | 4 | 5/5 (100%) | 0 | 100% | 100% | 0.518934 / 0.770182 ms |
+| Hybrid fixture | 4/6 (66.67%) | 2 | 4/5 (80%) | 1/5 (20%) | 100% | 100% | 0.488594 / 0.851076 ms |
+
+Hybrid fixture scores reduce the missed-unsafe count in this small scenario set but introduce one false block. The semantic provider is `fixture`; token counts are unavailable. These numbers validate the harness and its reporting only. They are not live Gemma accuracy, production risk estimates, or universal bypass-resistance evidence. The 100% bypass figure covers only the registered adapter probes.

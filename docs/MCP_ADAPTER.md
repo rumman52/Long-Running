@@ -25,17 +25,19 @@ This demonstration uses fake local callbacks and a temporary SQLite database. It
 
 ## Input-boundary hardening status
 
-The standalone MCP transport currently implements a focused newline-delimited JSON-RPC subset. The main-branch implementation at the audited revision does not yet enforce a maximum message length or reject duplicate JSON object keys and non-finite numeric constants.
+The security candidate branch `security/standalone-boundary-hardening-20261031` is based on main revision `0f80f35aed2c820d9eeb780ec1c09c5d28221dc7`. It carries the bounded-input implementation and adversarial LangGraph regression described below. The code-bearing head `a66e9a4f0c30f6d5de8fe91c15640eaadd83cb4c` passed Python CI [#41113067617](https://github.com/rumman52/Long-Running/actions/runs/41113067617) and dependency audit [#41113067648](https://github.com/rumman52/Long-Running/actions/runs/41113067648). Independent security review and merge remain required; later documentation-only commits must retain passing exact-head checks.
 
-Candidate PR #16 adds the following defense-in-depth limits and regression tests:
+Candidate behavior:
 
-- Maximum MCP stdio record length: 1,000,000 characters.
-- Duplicate JSON object keys, NaN/Infinity, exponent-overflow floats, and decoder recursion failures are rejected as parse errors.
-- Generic guarded-tool arguments and returned tool results are limited to 1,000,000 serialized UTF-8 bytes, a nesting depth of 64, and 100,000 JSON nodes. A malformed or oversized result after a callback runs is recorded as an unknown outcome and is not returned to the host.
-- Cyclic, non-finite, non-JSON, and oversized arguments fail closed before the action-ID factory or handler is invoked.
-- The adapter snapshots validated JSON before calling trusted callbacks so mutation cannot change the validated payload.
+- MCP stdio records are limited to 1,000,000 characters, and JSON container nesting is explicitly capped at 128 before decoding. The scanner ignores brackets and braces inside escaped JSON strings.
+- Duplicate keys at any object depth, NaN/Infinity, exponent-overflow floats, malformed JSON, excessive nesting, and oversized records are rejected as parse errors. The stdio loop continues with the next record.
+- Guarded-tool arguments and returned results are limited to 1,000,000 compact UTF-8 JSON bytes, depth 64, and 100,000 JSON nodes.
+- Cyclic, non-finite, non-JSON, oversized, or excessively nested arguments fail before the action-ID factory and handler. Validated arguments are snapshotted before trusted callbacks.
+- If a callback has already run but its result is invalid or exceeds the result bound, the engine records an unknown outcome and does not return the oversized result. The host must reconcile before retrying; it must not assume the action failed.
+- The adversarial LangGraph test uses a compiled `StateGraph` and `ToolNode` with a scripted agent node that deliberately follows prompt-injection-shaped tool output. The prohibited callback remains uninvoked. This is deterministic framework-boundary evidence, not live-LLM qualification.
 
-These changes are candidate-branch evidence until PR #16 passes the full CI matrix and is merged. They do not turn this subset into full MCP protocol conformance.
+These are candidate-branch results until the rebased security changes pass exact-head CI, receive independent review, and are merged. They do not establish full MCP protocol/client conformance.
+
 ## Scope and security limitations
 
 - This is a practical subset of JSON Schema validation; use a conformant validator for complex schemas.

@@ -62,7 +62,7 @@ jobs:
           python -m pip install -e ".[dev]"
 
       - name: Run M7 evaluation regression tests
-        run: pytest tests/test_m7_evaluation.py tests/conformance/test_shuddho_adapter.py -q
+        run: pytest tests/test_m7_evaluation.py tests/conformance/test_async_tool_spec_adapter.py -q
 
       - name: Run synthetic M7 evaluation
         run: python benchmarks/evaluate_m7.py --output "$RUNNER_TEMP/m7-evaluation.json"
