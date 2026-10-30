@@ -87,7 +87,7 @@ class AsyncToolSpecAdapter:
         self._contract_provider = contract_provider
         self._context_provider = context_provider
         self._action_id_factory = action_id_factory
-        self._tools: dict[str, tuple[AsyncToolSpec, AsyncToolHandler]] = {}
+        self._tools: dict[str, tuple[Callable[[dict[str, object]], object], AsyncToolHandler]] = {}
 
     def register_tool(self, spec: AsyncToolSpec, handler: AsyncToolHandler) -> None:
         """Register a trusted ToolSpec and its asynchronous execution handler."""
@@ -110,7 +110,8 @@ class AsyncToolSpecAdapter:
             raise ValueError("Async tool handler must be callable")
         if spec.name in self._tools:
             raise ValueError(f"ToolSpec {spec.name!r} is already registered")
-        self._tools[spec.name] = (spec, handler)
+        validator = spec.validate
+        self._tools[spec.name] = (validator, handler)
 
     @staticmethod
     def _blocked(code: str, detail: str) -> ToolCallResult:
@@ -134,12 +135,17 @@ class AsyncToolSpecAdapter:
                 "MALFORMED_INPUT", "Tool arguments must be a JSON object."
             )
 
-        spec, handler = registered
+        validator, handler = registered
         try:
             raw_snapshot = _snapshot_bounded_json(arguments, label="Tool arguments")
             if not isinstance(raw_snapshot, dict):
                 raise ValueError("Tool arguments must be a JSON object")
-            validated_input = spec.validate(cast(dict[str, object], raw_snapshot))
+            validation_arguments = _snapshot_bounded_json(
+                raw_snapshot, label="ToolSpec validation arguments"
+            )
+            if not isinstance(validation_arguments, dict):
+                raise ValueError("ToolSpec validation arguments must be an object")
+            validated_input = validator(cast(dict[str, object], validation_arguments))
             validated_snapshot = _snapshot_bounded_json(
                 validated_input, label="Validated ToolSpec input"
             )
