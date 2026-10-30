@@ -22,8 +22,11 @@ def test_official_mcp_sdk_initializes_lists_and_calls_guarded_tools() -> None:
         )
         async with stdio_client(parameters) as (read_stream, write_stream):
             async with ClientSession(read_stream, write_stream) as session:
-                initialized = await session.initialize()
-                assert initialized.serverInfo.name == "intent-integrity"
+                await session.initialize()
+                server_info = session.server_info
+                assert server_info is not None
+                assert server_info.name == "intent-integrity"
+                assert server_info.version == "0.2.0"
 
                 listed = await session.list_tools()
                 names = {tool.name for tool in listed.tools}
