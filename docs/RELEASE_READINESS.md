@@ -22,7 +22,7 @@ Exact merged-main evidence:
 
 PR #15 updates documentation to make the standalone project boundary explicit. Its exact-head Python CI #41097543123 and dependency audit #41097543149 passed. PR #15 remains open and has not been merged.
 
-PR #16 adds test-first coverage for bounded MCP input, non-standard/ambiguous JSON, deeply nested tool arguments, and prompt-injection-shaped tool output through LangGraph ToolNode. Its candidate tests are not merged-main evidence. The candidate must pass after implementation before the changes can be considered complete.
+PR #16 now contains the implementation and test-first regression sequence for bounded MCP input, non-standard/ambiguous JSON, deeply nested tool arguments, callback-argument snapshotting, and prompt-injection-shaped tool output through LangGraph ToolNode. Current candidate head: `9c99e766bf4bdf54a499917615aeedb67bade371`. The visible Python/security runs (#41101361738 and #41101361839) were created for the preceding head `c7bf05c8102d6a8c67d90140cb6f88005ede2cd2`; they are not exact-head evidence. Fresh CI and independent security review remain required. The candidate is still draft and is not merged-main evidence.
 
 An Apache-2.0 license candidate and matching package metadata are present. The maintainer must explicitly approve the license choice and confirm authority to license all repository material before a public release.
 
