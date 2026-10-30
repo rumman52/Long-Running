@@ -158,6 +158,7 @@ def _json_string_size(value: str) -> int:
             return size
     return size
 
+
 def _json_argument_error(value: object) -> str | None:
     """Check JSON shape, cycle/depth/node bounds, and encoded-size budget iteratively."""
     stack: list[tuple[str, object, int]] = [('visit', value, 0)]
@@ -193,6 +194,8 @@ def _json_argument_error(value: object) -> str | None:
                 return 'Arguments must contain only finite JSON numbers.'
             encoded_size += len(json.dumps(current, allow_nan=False))
         elif isinstance(current, dict):
+            if len(current) > MAX_TOOL_ARGUMENT_NODES:
+                return 'Arguments contain too many JSON values.'
             identity = id(current)
             if identity in active_containers:
                 return 'Arguments must not contain circular references.'
@@ -203,8 +206,12 @@ def _json_argument_error(value: object) -> str | None:
                 if not isinstance(key, str):
                     return 'JSON object keys must be strings.'
                 encoded_size += _json_string_size(key) + 1
+                if encoded_size > MAX_TOOL_ARGUMENT_BYTES:
+                    return f'Arguments exceed the {MAX_TOOL_ARGUMENT_BYTES}-byte JSON limit.'
                 stack.append(('visit', child, depth + 1))
         elif isinstance(current, (list, tuple)):
+            if len(current) > MAX_TOOL_ARGUMENT_NODES:
+                return 'Arguments contain too many JSON values.'
             identity = id(current)
             if identity in active_containers:
                 return 'Arguments must not contain circular references.'
