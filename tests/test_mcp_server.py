@@ -130,8 +130,8 @@ def test_stdio_rejects_non_finite_json_constants_and_continues() -> None:
         output = StringIO()
         server.serve_stdio(
             StringIO(
-                '{"jsonrpc":"2.0","id":NaN,"method":"ping"}\\n'
-                '{"jsonrpc":"2.0","id":2,"method":"ping"}\\n'
+                '{"jsonrpc":"2.0","id":NaN,"method":"ping"}\n'
+                '{"jsonrpc":"2.0","id":2,"method":"ping"}\n'
             ),
             output,
         )
@@ -146,7 +146,7 @@ def test_stdio_rejects_duplicate_json_object_keys() -> None:
         output = StringIO()
         server.serve_stdio(
             StringIO(
-                '{"jsonrpc":"2.0","id":1,"method":"ping","method":"initialize"}\\n'
+                '{"jsonrpc":"2.0","id":1,"method":"ping","method":"initialize"}\n'
             ),
             output,
         )
@@ -160,11 +160,11 @@ def test_stdio_rejects_oversized_line_and_processes_next_request() -> None:
         oversized = (
             '{"jsonrpc":"2.0","id":1,"method":"ping","params":{"padding":"'
             + ("x" * 1_000_001)
-            + '"}}\\n'
+            + '"}}\n'
         )
         output = StringIO()
         server.serve_stdio(
-            StringIO(oversized + '{"jsonrpc":"2.0","id":2,"method":"ping"}\\n'),
+            StringIO(oversized + '{"jsonrpc":"2.0","id":2,"method":"ping"}\n'),
             output,
         )
         replies = [json.loads(line) for line in output.getvalue().splitlines()]
@@ -181,7 +181,7 @@ def test_stdio_rejects_excessive_json_nesting_and_continues() -> None:
             StringIO(
                 '{"jsonrpc":"2.0","id":1,"method":"ping","params":'
                 + deeply_nested
-                + '}\\n{"jsonrpc":"2.0","id":2,"method":"ping"}\\n'
+                + '}\n{"jsonrpc":"2.0","id":2,"method":"ping"}\n'
             ),
             output,
         )
