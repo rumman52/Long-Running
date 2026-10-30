@@ -161,3 +161,51 @@ def test_deeply_nested_tool_arguments_fail_closed_without_raising() -> None:
         assert result.decision == Decision.BLOCK
         assert "MALFORMED_INPUT" in result.reason_codes
         assert calls == []
+
+
+
+def test_action_id_factory_mutation_cannot_change_validated_handler_arguments() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        active = contract()
+        engine = IntentIntegrityEngine(store, clock=lambda: NOW)
+        engine.start_task(active)
+        engine.record_plan(
+            active,
+            (
+                PlanStep("draft", "Draft report", "write_report",
+                         acceptance_criteria=("Report is accurate",)),
+                PlanStep("publish", "Publish with approval", "publish_report",
+                         acceptance_criteria=("User approves final report",),
+                         dependencies=("draft",)),
+            ),
+        )
+        calls: list[dict[str, object]] = []
+
+        def mutating_action_id(
+            _task: str, _tool: str, args: dict[str, object]
+        ) -> str:
+            args["report"] = "tampered after validation"
+            return "snapshot-action"
+
+        adapter = GuardedToolAdapter(
+            engine, lambda: active, context, mutating_action_id
+        )
+        adapter.register_tool(
+            ToolDefinition(
+                "save_report",
+                "Save draft",
+                "write_report",
+                {
+                    "type": "object",
+                    "properties": {"report": {"type": "string", "minLength": 1}},
+                    "required": ["report"],
+                    "additionalProperties": False,
+                },
+                lambda args: (calls.append(dict(args)) or {"saved": True}),
+            )
+        )
+        original = {"report": "validated report"}
+        result = adapter.call_tool("save_report", original)
+        assert result.decision == Decision.ALLOW
+        assert original == {"report": "validated report"}
+        assert calls == [{"report": "validated report"}]
