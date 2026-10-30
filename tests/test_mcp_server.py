@@ -179,9 +179,9 @@ def test_stdio_rejects_excessive_json_nesting_and_continues() -> None:
         output = StringIO()
         server.serve_stdio(
             StringIO(
-                '{"jsonrpc":"2.0","id":1,"method":"ping","params":'
+                '{"jsonrpc":"2.0","id":1,"method":"ping","params":{"nested":'
                 + deeply_nested
-                + '}\n{"jsonrpc":"2.0","id":2,"method":"ping"}\n'
+                + '}}\n{"jsonrpc":"2.0","id":2,"method":"ping"}\n'
             ),
             output,
         )
