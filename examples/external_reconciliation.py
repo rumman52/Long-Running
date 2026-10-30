@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -24,36 +25,48 @@ class LocalReportProvider:
     def __init__(self, path: Path, *, lose_response: bool = False) -> None:
         self.path = path
         self.lose_response = lose_response
-        with sqlite3.connect(path) as db:
-            db.execute("CREATE TABLE IF NOT EXISTS reports "
-                       "(key TEXT PRIMARY KEY, request TEXT NOT NULL)")
+        with closing(sqlite3.connect(path)) as db:
+            with db:
+                db.execute("CREATE TABLE IF NOT EXISTS reports "
+                           "(key TEXT PRIMARY KEY, request TEXT NOT NULL)")
 
     def execute(self, request: ProviderRequest) -> ProviderOutcome:
         binding = json.dumps({"payload": request.payload, "version": request.expected_version},
                              sort_keys=True, allow_nan=False)
-        with sqlite3.connect(self.path) as db:
-            db.execute("BEGIN IMMEDIATE")
-            prior = db.execute("SELECT request FROM reports WHERE key = ?",
-                               (request.idempotency_key,)).fetchone()
-            if prior is not None:
-                if prior[0] != binding:
-                    return ProviderOutcome(OutcomeStatus.REJECTED, detail="Key/payload conflict")
-            else:
-                if datetime.now(UTC) >= request.idempotency_expires_at:
-                    return ProviderOutcome(OutcomeStatus.REJECTED, detail="Deadline expired")
-                if request.expected_version != "source-v1":
-                    return ProviderOutcome(OutcomeStatus.REJECTED, detail="Source version changed")
-                db.execute("INSERT INTO reports VALUES (?, ?)", (request.idempotency_key, binding))
+        with closing(sqlite3.connect(self.path)) as db:
+            with db:
+                db.execute("BEGIN IMMEDIATE")
+                prior = db.execute("SELECT request FROM reports WHERE key = ?",
+                                   (request.idempotency_key,)).fetchone()
+                if prior is not None:
+                    if prior[0] != binding:
+                        return ProviderOutcome(
+                            OutcomeStatus.REJECTED, detail="Key/payload conflict"
+                        )
+                else:
+                    if datetime.now(UTC) >= request.idempotency_expires_at:
+                        return ProviderOutcome(OutcomeStatus.REJECTED, detail="Deadline expired")
+                    if request.expected_version != "source-v1":
+                        return ProviderOutcome(
+                            OutcomeStatus.REJECTED, detail="Source version changed"
+                        )
+                    db.execute(
+                        "INSERT INTO reports VALUES (?, ?)",
+                        (request.idempotency_key, binding),
+                    )
         if self.lose_response:
             self.lose_response = False
             raise TimeoutError("Report committed; response lost")
         return ProviderOutcome(OutcomeStatus.SUCCEEDED, provider_reference=request.idempotency_key)
 
     def lookup(self, request: ProviderRequest) -> ProviderOutcome:
-        with sqlite3.connect(self.path) as db:
-            db.execute("BEGIN IMMEDIATE")
-            found = db.execute("SELECT key FROM reports WHERE key = ?",
-                               (request.idempotency_key,)).fetchone()
+        with closing(sqlite3.connect(self.path)) as db:
+            with db:
+                db.execute("BEGIN IMMEDIATE")
+                found = db.execute(
+                    "SELECT key FROM reports WHERE key = ?",
+                    (request.idempotency_key,),
+                ).fetchone()
         if found:
             return ProviderOutcome(OutcomeStatus.SUCCEEDED,
                                    provider_reference=request.idempotency_key)
@@ -86,8 +99,9 @@ def main() -> None:
                 engine, (LocalReportProvider(root / "provider.db"),))
             recovered = coordinator.reconcile_pending(contract)[0]
             print("After outcome lookup:", recovered.action.status.value)
-            with sqlite3.connect(root / "provider.db") as db:
-                effects = db.execute("SELECT count(*) FROM reports").fetchone()[0]
+            with closing(sqlite3.connect(root / "provider.db")) as db:
+                with db:
+                    effects = db.execute("SELECT count(*) FROM reports").fetchone()[0]
             print("Provider reports stored:", effects)
             assert recovered.action.status == ActionStatus.SUCCEEDED and effects == 1
 

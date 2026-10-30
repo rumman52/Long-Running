@@ -104,7 +104,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        langgraph-version: ["0.2.74", "1.0.8"]
+        include:
+          - langgraph-version: "0.2.74"
+            prebuilt-version: ""
+          - langgraph-version: "1.0.8"
+            prebuilt-version: "1.0.7"
+          - langgraph-version: "1.2.18"
+            prebuilt-version: "1.1.1"
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -119,6 +125,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
           python -m pip install "langgraph==${{ matrix.langgraph-version }}"
+          if [ -n "${{ matrix.prebuilt-version }}" ]; then
+            python -m pip install "langgraph-prebuilt==${{ matrix.prebuilt-version }}"
+          fi
 
       - name: Run LangGraph ToolNode conformance tests
         run: pytest tests/conformance/test_langgraph_adapter.py -q
