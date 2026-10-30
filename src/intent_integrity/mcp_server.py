@@ -11,6 +11,32 @@ from intent_integrity.models import Decision
 
 SUPPORTED_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 MAX_MESSAGE_CHARS = 1_000_000
+MAX_JSON_NESTING_DEPTH = 128
+
+
+def _has_excessive_json_nesting(value: str) -> bool:
+    """Bound JSON container nesting before json.loads reaches interpreter recursion limits."""
+    depth = 0
+    in_string = False
+    escaped = False
+    for character in value:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            continue
+        if character == '"':
+            in_string = True
+        elif character in "[{":
+            depth += 1
+            if depth > MAX_JSON_NESTING_DEPTH:
+                return True
+        elif character in "]}" and depth:
+            depth -= 1
+    return False
 
 
 def _reject_json_constant(value: str) -> object:
@@ -141,6 +167,8 @@ class MCPStdioServer:
                 response = self._error(None, -32600, "Request exceeds maximum message size")
             elif not line.strip():
                 continue
+            elif _has_excessive_json_nesting(line):
+                response = self._error(None, -32700, "Parse error")
             else:
                 try:
                     message = json.loads(

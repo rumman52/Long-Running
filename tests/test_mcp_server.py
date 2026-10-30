@@ -208,6 +208,18 @@ def test_stdio_rejects_excessive_json_nesting_and_continues() -> None:
         assert replies[0]["error"]["code"] == -32700
         assert replies[1]["result"] == {}
 
+def test_stdio_ignores_deep_brackets_inside_json_strings() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, _ = make_server(store)
+        payload = 'quoted "text" with slash \\\\ ' + "[" * 1_200 + "]" * 1_200
+        request = json.dumps(
+            {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {"text": payload}}
+        )
+        output = StringIO()
+        server.serve_stdio(StringIO(request + "\\n"), output)
+        reply = json.loads(output.getvalue())
+        assert reply["result"] == {}
+
 
 def test_handle_message_rejects_non_finite_request_id() -> None:
     with SQLiteEventStore(":memory:") as store:
