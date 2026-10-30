@@ -22,8 +22,11 @@ def test_official_mcp_sdk_initializes_lists_and_calls_guarded_tools() -> None:
         )
         async with stdio_client(parameters) as (read_stream, write_stream):
             async with ClientSession(read_stream, write_stream) as session:
-                initialized = await session.initialize()
-                assert initialized.serverInfo.name == "intent-integrity"
+                await session.initialize()
+                server_info = session.server_info
+                assert server_info is not None
+                assert server_info.name == "intent-integrity"
+                assert server_info.version == "0.2.0"
 
                 listed = await session.list_tools()
                 names = {tool.name for tool in listed.tools}
@@ -32,7 +35,7 @@ def test_official_mcp_sdk_initializes_lists_and_calls_guarded_tools() -> None:
                 allowed = await session.call_tool(
                     "save_draft", {"report": "SDK conformance smoke test"}
                 )
-                assert not allowed.isError
+                assert allowed.is_error is False
                 allowed_payload = json.loads(allowed.content[0].text)
                 assert allowed_payload["decision"] == "ALLOW"
                 assert allowed_payload["executed"] is True
@@ -40,7 +43,7 @@ def test_official_mcp_sdk_initializes_lists_and_calls_guarded_tools() -> None:
                 blocked = await session.call_tool(
                     "publish_report", {"report": "Must not publish without approval"}
                 )
-                assert blocked.isError
+                assert blocked.is_error is True
                 blocked_payload = json.loads(blocked.content[0].text)
                 assert blocked_payload["decision"] == "BLOCK"
                 assert blocked_payload["executed"] is False
