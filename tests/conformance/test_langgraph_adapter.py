@@ -208,7 +208,7 @@ def test_prompt_injection_in_tool_result_cannot_authorize_prohibited_followup() 
 
     # This deterministic agent node deliberately obeys the injected tool text.
     # The graph and ToolNode are real LangGraph components; no live LLM is called.
-    def scripted_agent(state: MessagesState):
+    def scripted_agent(state):
         last = state["messages"][-1]
         if isinstance(last, HumanMessage):
             return {
@@ -254,7 +254,7 @@ def test_prompt_injection_in_tool_result_cannot_authorize_prohibited_followup() 
             }
         raise AssertionError(f"Unexpected LangGraph agent state: {type(last).__name__}")
 
-    def route_after_agent(state: MessagesState):
+    def route_after_agent(state):
         return "tools" if state["messages"][-1].tool_calls else END
 
     graph = StateGraph(MessagesState)
