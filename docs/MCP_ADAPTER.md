@@ -23,11 +23,26 @@ python examples/guarded_mcp_server.py
 
 This demonstration uses fake local callbacks and a temporary SQLite database. It does not contact external services. Standard output is reserved for newline-delimited JSON-RPC messages. Try an `initialize`, `tools/list`, or `tools/call` request, one JSON object per line.
 
+## Input-boundary hardening status
+
+The main-branch implementation at audited revision `9936b9c64345fcef943bc1603c7ffc0a017dba2d` does not yet include PR #16. The candidate at `267ed56d9ad3d1d0f1ebe922a9f9670163e19522` passed exact-head Python CI [#41104798481](https://github.com/rumman52/Long-Running/actions/runs/41104798481) and dependency audit [#41104798516](https://github.com/rumman52/Long-Running/actions/runs/41104798516). It remains draft and unmerged pending independent security review.
+
+Candidate behavior:
+
+- MCP stdio records are limited to 1,000,000 characters, and JSON container nesting is explicitly capped at 128 before decoding. The scanner ignores brackets and braces inside escaped JSON strings.
+- Duplicate keys at any object depth, NaN/Infinity, exponent-overflow floats, malformed JSON, excessive nesting, and oversized records are rejected as parse errors. The stdio loop continues with the next record.
+- Guarded-tool arguments and returned results are limited to 1,000,000 compact UTF-8 JSON bytes, depth 64, and 100,000 JSON nodes.
+- Cyclic, non-finite, non-JSON, oversized, or excessively nested arguments fail before the action-ID factory and handler. Validated arguments are snapshotted before trusted callbacks.
+- If a callback has already run but its result is invalid or exceeds the result bound, the engine records an unknown outcome and does not return the oversized result. The host must reconcile before retrying; it must not assume the action failed.
+- The adversarial LangGraph test uses a compiled `StateGraph` and `ToolNode` with a scripted agent node that deliberately follows prompt-injection-shaped tool output. The prohibited callback remains uninvoked. This is deterministic framework-boundary evidence, not live-LLM qualification.
+
+These are candidate-branch results until PR #16 is reviewed and merged. They do not establish full MCP protocol/client conformance.
+
 ## Scope and security limitations
 
 - This is a practical subset of JSON Schema validation; use a conformant validator for complex schemas.
 - The MCP wrapper supports only initialization, ping, tool listing/calls, and notification suppression. `tests/test_mcp_sdk_conformance.py` exercises initialize, list, allowed calls, and blocked calls through the official MCP Python SDK 2.x client. This is a focused SDK smoke test, not a complete MCP protocol/client conformance suite.
 - No authentication handshake, resource/prompt APIs, cancellation, progress, transport security, or dynamic tool-list notifications are implemented.
 - Provider-specific outcome lookup, conditional operations, and reconciliation after a timeout/crash remain future work.
-- Multi-process SQLite concurrency and crash/reconciliation fault injection are covered by the persistence and reconciliation suites. LangGraph ToolNode and Shuddho adapter-level tests are present, but the Shuddho bridge is not wired into its deployed runtime.
-- Real-host adversarial bypass/prompt-injection evaluation, a broader MCP protocol/client matrix, live Gemma measurements on independently labelled data, and independent external security review remain outstanding.
+- Multi-process SQLite concurrency and crash/reconciliation fault injection are covered by the persistence and reconciliation suites. LangGraph ToolNode and optional structural async ToolSpec adapter tests are local conformance checks; no external host runtime is bundled or required.
+- A live LLM-driven host adversarial evaluation, a broader MCP protocol/client matrix, live Gemma measurements on independently labelled data, and independent external security review remain outstanding.

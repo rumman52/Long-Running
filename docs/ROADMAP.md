@@ -45,7 +45,14 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 
 ## M4 — Portable Agent Skill and Controlled Action Boundary
 
-**Status: Adapter, portable skill, MCP stdio scaffold, official-SDK smoke conformance, and LangGraph ToolNode adapter implemented; real-host adversarial qualification remains.**
+**Status: PR #16's bounded-input/result implementation and deterministic LangGraph adversarial regression pass exact-head CI; independent review/merge and live host qualification remain.**
+
+- [x] Bound MCP stdio input length to 1,000,000 characters and JSON nesting to 128; reject duplicate keys, non-finite numbers, exponent overflow, malformed JSON, and excessive nesting. The stdio loop recovers after rejected records.
+- [x] Bound guarded-tool arguments and results to 1,000,000 compact UTF-8 JSON bytes, depth 64, and 100,000 JSON nodes; reject cycles/non-JSON values; snapshot validated arguments before callbacks; record an executed callback with an invalid/oversized result as UNKNOWN.
+- [x] Exercise prompt-injection-shaped tool output followed by a prohibited call through a compiled LangGraph StateGraph/ToolNode using a scripted deterministic agent. The prohibited callback remains uninvoked.
+- [ ] Complete live LLM-driven host evaluation, direct-handler bypass assessment across consumer routes, and a broader MCP protocol/client matrix.
+
+Candidate evidence: [PR #16](https://github.com/rumman52/Long-Running/pull/16), exact-head Python CI [#41104798481](https://github.com/rumman52/Long-Running/actions/runs/41104798481), dependency audit [#41104798516](https://github.com/rumman52/Long-Running/actions/runs/41104798516). PR #16 remains draft and unmerged; the LangGraph test is not live-LLM or universal-host qualification.
 
 - [x] Add an Agent Skills-compatible `SKILL.md` with explicit trust-boundary guidance.
 - [x] Define a host-owned tool registry and adapter protocol for proposals, trusted context, decisions, and results.
@@ -53,8 +60,8 @@ A milestone is complete only when its acceptance criteria are tested and the evi
 - [x] Test that blocked actions do not reach the underlying callback.
 - [x] Add malformed-input, unknown-tool, duplicate-claim, and adapter-failure tests.
 - [x] Exercise initialize, tool listing, allowed invocation, and blocked invocation through the official MCP Python SDK (`tests/test_mcp_sdk_conformance.py`). Full protocol conformance across supported clients remains unclaimed.
-- [ ] Add adversarial bypass and prompt-injection evaluation against a real agent host.
-- [x] Add an optional LangGraph ToolNode adapter and execute conformance tests through a compiled ToolNode. A live LLM and broader framework/version matrix are not qualified.
+- [ ] Complete live LLM-driven adversarial evaluation and direct-handler bypass assessment across consumer routes.
+- [x] Add an optional LangGraph ToolNode adapter and execute conformance tests through a compiled ToolNode. The candidate adds a scripted multi-turn adversarial graph test; a live LLM and broader framework/version matrix are not qualified.
 
 ## M5 — External Outcome Reconciliation
 
@@ -73,25 +80,26 @@ without provider metadata remain fail closed. These local tests do not qualify a
 
 ## M6 — Optional Semantic Drift Detection and Gemma Adapter
 
-**Status: Implementation added; live Gemma measurements and broader independent evaluation remain pending.**
+**Status: Core implementation exists; PR #17 expands the provisional development corpus and adds multi-trial reporting. Live Gemma measurements and independent labels remain pending.**
 
 - [x] Define a provider interface independent of the core validator.
 - [x] Add optional Gemma-based structured plan comparison through an Ollama-compatible endpoint.
 - [x] Validate all model output and treat semantic signals as advisory; semantic output cannot change core validator decisions.
 - [x] Test malformed outputs, refusals, uncertainty, prompt injection, invalid references, and model unavailability.
 - [x] Add a labelled starter dataset and reproducible evaluation harness for precision, recall, false-pause rate, missed-drift rate, latency, and token overhead.
-- [ ] Run and review live Gemma measurements on an expanded, independently labelled dataset before publishing accuracy claims.
+- [x] Expand the development corpus to 30 balanced cases (15 aligned / 15 drift-labelled) and add bounded sequential evaluation trials (1–100) with per-trial and aggregate metrics in [PR #17](https://github.com/rumman52/Long-Running/pull/17). Labels are provisional author-assigned development labels, not independent ground truth. Exact-head Python CI #41102632889 and dependency audit #41102633109 passed.
+- [ ] Obtain independent human labels, a held-out test set, and live Gemma measurements before publishing accuracy claims. No Ollama endpoint was available during this audit.
 
 ## M7 — Cross-Framework Conformance and Evaluation
 
-**Status: Adapter-level conformance and synthetic evaluation implemented; live-host qualification remains.**
+**Status: Optional adapter-level conformance and synthetic evaluation implemented; broader framework and model-backed qualification remain.**
 
-- [x] Add a Shuddho consumer bridge for non-consequential asynchronous ToolSpec handlers. Consequential and approval-required tools remain on Shuddho's native approved-action and provider-reconciliation path.
-- [x] Add an optional LangGraph ToolNode adapter and a framework-level conformance test.
-- [x] Publish adapter conformance tests and a compatibility matrix in Cross-Framework Conformance and Evaluation.
+- [x] Add an optional structural async ToolSpec consumer adapter with local contract tests. It has no runtime dependency on an external host package and is not required to use the standalone core library.
+- [x] Add an optional LangGraph ToolNode adapter and execute conformance tests through a compiled ToolNode.
+- [x] Publish adapter conformance tests and a compatibility matrix in [Cross-Framework Conformance and Evaluation](CROSS_FRAMEWORK_CONFORMANCE.md).
 - [x] Add a reproducible comparison of unmonitored, deterministic-only, and hybrid approaches. CI uses frozen fixture signals; the harness can also run with the M6 Gemma/Ollama provider.
 - [x] Calculate unsafe actions prevented, task success, false blocks, ambiguous-outcome recovery quality, local invocation overhead, semantic latency/token usage when a provider reports them, and registered-adapter bypass resistance.
-- [ ] Wire the Shuddho bridge into the deployed Shuddho runtime and verify every consequential tool path; adapter tests alone do not prove live integration.
+- [ ] Expand the supported framework/version matrix and qualify a live LLM-driven host integration before making broader compatibility claims.
 - [ ] Run and review M7 with a live Gemma provider on an expanded, independently labelled scenario set. Live semantic metrics remain unmeasured.
 
 ## M8 — Open-Source Release Readiness
