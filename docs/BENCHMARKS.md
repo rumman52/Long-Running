@@ -2,7 +2,7 @@
 
 ## Current evidence status
 
-No quantitative live-model benchmark results are published yet. The M7 CI fixture run is synthetic and must not be presented as evidence of model accuracy. The M7 harness exists, but a live Gemma/Ollama run on an expanded, independently labelled dataset remains outstanding. This methodology defines how results must be collected before making performance, safety-effectiveness, or false-positive claims; it is not evidence that the system already achieves any target.
+No quantitative live-model benchmark results are published yet. The M7 CI fixture run is synthetic and must not be presented as evidence of model accuracy. The M7 harness exists, and M6 now has a 30-case provisional development dataset with sequential multi-trial evaluation support. The labels have not been independently reviewed; a live Gemma/Ollama run on an independently labelled and held-out dataset remains outstanding. This methodology defines how results must be collected before making performance, safety-effectiveness, or false-positive claims; it is not evidence that the system already achieves any target.
 
 ## Systems to compare
 
@@ -64,4 +64,4 @@ python benchmarks/evaluate_m7.py --output artifacts/m7-evaluation.json
 
 CI publishes the fixture evaluation as an artifact. These values are synthetic regression evidence, not model performance.
 
-For a live semantic run, follow [Cross-Framework Conformance and Evaluation](CROSS_FRAMEWORK_CONFORMANCE.md) after starting the selected Ollama-compatible endpoint and loading the declared Gemma model. Save raw output, model identity, labelled dataset version, thresholds, latency, token usage, and the commit SHA. Independent review of labels and results is required before publishing quantitative claims.
+For a live semantic run, follow [Cross-Framework Conformance and Evaluation](CROSS_FRAMEWORK_CONFORMANCE.md) after starting the selected Ollama-compatible endpoint and loading the declared Gemma model. Run multiple trials (for example, `python examples/evaluate_semantic_drift.py --model gemma3:4b --trials 5`) and save raw output, model identity, labelled dataset version, thresholds, latency, token usage, per-trial metrics, and the commit SHA. Independent review of labels and results is required before publishing quantitative claims.

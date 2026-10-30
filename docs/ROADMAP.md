@@ -77,14 +77,16 @@ without provider metadata remain fail closed. These local tests do not qualify a
 
 ## M6 — Optional Semantic Drift Detection and Gemma Adapter
 
-**Status: Implementation added; live Gemma measurements and broader independent evaluation remain pending.**
+**Status: Provider interface, validated Gemma/Ollama adapter, 30-case provisional development corpus, and multi-trial evaluator implemented; independent labels and live model qualification remain.**
 
-- [x] Define a provider interface independent of the core validator.
+- [x] Define a provider interface independent of the deterministic validator.
 - [x] Add optional Gemma-based structured plan comparison through an Ollama-compatible endpoint.
-- [x] Validate all model output and treat semantic signals as advisory; semantic output cannot change core validator decisions.
-- [x] Test malformed outputs, refusals, uncertainty, prompt injection, invalid references, and model unavailability.
-- [x] Add a labelled starter dataset and reproducible evaluation harness for precision, recall, false-pause rate, missed-drift rate, latency, and token overhead.
-- [ ] Run and review live Gemma measurements on an expanded, independently labelled dataset before publishing accuracy claims.
+- [x] Validate model output strictly; semantic signals remain advisory and cannot change core validator decisions.
+- [x] Test malformed outputs, refusals, uncertainty, prompt injection, duplicate keys, token metadata, and provider unavailability.
+- [x] Measure precision, recall, false-pause rate, missed-drift rate, mean/p95 latency, and token overhead when usage is reported.
+- [x] Expand the development corpus to 30 authored cases and support 1–100 sequential trials with per-trial and aggregate metrics.
+- [ ] Obtain independent human review of every dataset label, resolve disagreements, and create a held-out test set before publishing accuracy claims.
+- [ ] Run and review live Gemma measurements on that independently labelled dataset. No live model accuracy is claimed.
 
 ## M7 — Cross-Framework Conformance and Evaluation
 
