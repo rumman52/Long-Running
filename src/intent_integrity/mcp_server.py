@@ -130,6 +130,7 @@ class MCPStdioServer:
             if line == "":
                 break
 
+            response: dict[str, object] | None = None
             if len(line) > MAX_MESSAGE_CHARS:
                 # Consume the rest of this record so a following valid request remains usable.
                 if not line.endswith("\n"):
