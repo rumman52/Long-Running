@@ -216,7 +216,7 @@ def test_stdio_ignores_deep_brackets_inside_json_strings() -> None:
             {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {"text": payload}}
         )
         output = StringIO()
-        server.serve_stdio(StringIO(request + "\\n"), output)
+        server.serve_stdio(StringIO(request + "\n"), output)
         reply = json.loads(output.getvalue())
         assert reply["result"] == {}
 
