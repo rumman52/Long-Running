@@ -25,7 +25,7 @@ This demonstration uses fake local callbacks and a temporary SQLite database. It
 
 ## Input-boundary hardening status
 
-The security candidate branch `security/standalone-boundary-hardening-20261031` is based on main revision `0f80f35aed2c820d9eeb780ec1c09c5d28221dc7`. It carries the bounded-input implementation and adversarial LangGraph regression described below. The code-bearing head `a66e9a4f0c30f6d5de8fe91c15640eaadd83cb4c` passed Python CI [#41113067617](https://github.com/rumman52/Long-Running/actions/runs/41113067617) and dependency audit [#41113067648](https://github.com/rumman52/Long-Running/actions/runs/41113067648). Independent security review and merge remain required; later documentation-only commits must retain passing exact-head checks.
+PR #18 merged the bounded-input implementation and adversarial LangGraph regression into main at commit `330e5acf3f17e2b0c5b830570b42c85f9a39e07c`. Merged head `0c91e34fa8b57a86673b22f05ab7a6a7e6efb545` passed Python CI [#41114350260](https://github.com/rumman52/Long-Running/actions/runs/41114350260) and dependency audit [#41114350246](https://github.com/rumman52/Long-Running/actions/runs/41114350246). No independent review was recorded. Follow-up PR #19 rechecks mutable ToolSpec approval metadata after registration; its exact-head CI is pending.
 
 Candidate behavior:
 
@@ -36,7 +36,7 @@ Candidate behavior:
 - If a callback has already run but its result is invalid or exceeds the result bound, the engine records an unknown outcome and does not return the oversized result. The host must reconcile before retrying; it must not assume the action failed.
 - The adversarial LangGraph test uses a compiled `StateGraph` and `ToolNode` with a scripted agent node that deliberately follows prompt-injection-shaped tool output. The prohibited callback remains uninvoked. This is deterministic framework-boundary evidence, not live-LLM qualification.
 
-These are candidate-branch results until the rebased security changes pass exact-head CI, receive independent review, and are merged. They do not establish full MCP protocol/client conformance.
+These controls are merged on main, but they have not received independent security review or live-host qualification. They do not establish full MCP protocol/client conformance.
 
 ## Scope and security limitations
 

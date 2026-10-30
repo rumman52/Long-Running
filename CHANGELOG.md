@@ -12,7 +12,7 @@ All notable changes to Intent Integrity are recorded here. This project has not 
 - Reproducible M7 evaluation harness and synthetic CI artifacts.
 - Apache-2.0 license candidate, contribution/security guidance, dependency audit workflow, and Dependabot updates.
 - Verified commit-SHA pins for GitHub Actions.
-- Security candidate branch: bounded MCP JSON input and guarded-tool arguments/results, validated callback snapshots, unknown-outcome handling for oversized results, and compiled LangGraph adversarial regression (pending independent review and merge).
+- Merged PR #18: bounded MCP JSON input and guarded-tool arguments/results, validated callback snapshots, unknown-outcome handling for oversized results, and compiled LangGraph adversarial regression. No independent review was recorded at merge; PR #19 adds a post-registration ToolSpec approval-metadata recheck and awaits fresh exact-head CI.
 - Merged PR #17: 30-case provisional semantic development corpus and sequential multi-trial evaluation reporting; independent labels, a held-out set, and live Gemma evaluation remain pending.
 
 - Apache-2.0 license and SPDX package metadata, subject to maintainer approval of the M8 change.

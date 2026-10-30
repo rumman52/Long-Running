@@ -76,13 +76,13 @@ tool_node = ToolNode(tools)
 
 A blocked result is returned as structured JSON and the underlying callback is not invoked. The host must decide whether to stop the graph, request approval, or rebuild context after a block. No framework wrapper can prevent a separate unguarded tool from being called.
 
-## Adversarial tool-result regression (security candidate branch)
+## Adversarial tool-result regression (merged PR #18)
 
-The security candidate branch adds a compiled LangGraph `StateGraph`/`ToolNode` regression. A deterministic scripted agent first calls a permitted local report tool, consumes a tool result containing prompt-injection-shaped text, and deliberately attempts a prohibited `delete_source` call. The registered guarded adapter blocks the prohibited action before its callback. The rebased code-bearing head `a66e9a4f0c30f6d5de8fe91c15640eaadd83cb4c` passed Python CI [#41113067617](https://github.com/rumman52/Long-Running/actions/runs/41113067617) and dependency audit [#41113067648](https://github.com/rumman52/Long-Running/actions/runs/41113067648).
+PR #18 added a compiled LangGraph `StateGraph`/`ToolNode` regression. A deterministic scripted agent first calls a permitted local report tool, consumes a tool result containing prompt-injection-shaped text, and deliberately attempts a prohibited `delete_source` call. The registered guarded adapter blocks the prohibited action before its callback. Merged head `0c91e34fa8b57a86673b22f05ab7a6a7e6efb545` passed Python CI [#41114350260](https://github.com/rumman52/Long-Running/actions/runs/41114350260) and dependency audit [#41114350246](https://github.com/rumman52/Long-Running/actions/runs/41114350246).
 
-This is a deterministic framework-boundary test using real LangGraph graph and ToolNode components but a scripted agent node. It is not a live LLM test, a deployed-host penetration test, or proof that every consumer route is guarded. The security candidate is not yet merged and still requires independent review; any subsequent code changes must pass fresh exact-head CI.
+This is a deterministic framework-boundary test using real LangGraph graph and ToolNode components but a scripted agent node. PR #18 is merged, but no independent review was recorded. PR #19 adds a post-registration ToolSpec metadata recheck. The test is not a live LLM test, a deployed-host penetration test, or proof that every consumer route is guarded.
 
-## MCP and guarded-tool input boundaries (security candidate branch)
+## MCP and guarded-tool input boundaries (merged PR #18)
 
 - MCP stdio record length: 1,000,000 characters; JSON container nesting: 128.
 - Duplicate object keys, non-finite numeric constants, exponent overflow, malformed JSON, excessive nesting, and oversized records are rejected; the stdio loop continues to the next record.
@@ -90,7 +90,7 @@ This is a deterministic framework-boundary test using real LangGraph graph and T
 - Cycles and non-JSON values are rejected. Validated arguments are snapshotted before the action-ID factory and handler.
 - An invalid/oversized result after callback execution is recorded as an unknown outcome and requires reconciliation before retry.
 
-These controls remain candidate-branch evidence until independent review is complete and the changes are merged. They do not provide full MCP protocol/client conformance.
+These controls are merged on main but remain unreviewed by an independent security reviewer. They do not provide full MCP protocol/client conformance or live-host bypass qualification.
 
 ## Evaluation methodology
 

@@ -112,3 +112,11 @@
 - Python CI [#41113067617](https://github.com/rumman52/Long-Running/actions/runs/41113067617): success.
 - Dependency audit [#41113067648](https://github.com/rumman52/Long-Running/actions/runs/41113067648): success.
 - The candidate remains unmerged and requires independent security review. The scripted LangGraph test is not live-LLM or deployed-host qualification.
+
+
+## Post-merge status — 2026-10-31
+
+- PR #18 merged at `330e5acf3f17e2b0c5b830570b42c85f9a39e07c`; merged head `0c91e34fa8b57a86673b22f05ab7a6a7e6efb545` passed Python CI #41114350260 and dependency audit #41114350246.
+- No independent review was recorded on PR #18; the release security-review gate remains open.
+- PR #19 adds the mutable ToolSpec approval-metadata recheck. The regression was first observed failing on the previous implementation, then passed on the predecessor branch after the fix; fresh PR #19 exact-head CI remains required.
+- Live LLM/deployed-host qualification and alternate-route bypass assessment remain separate tasks.
