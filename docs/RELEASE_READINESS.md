@@ -8,7 +8,7 @@ Audited main revision: `330e5acf3f17e2b0c5b830570b42c85f9a39e07c`
 
 Long-Running is a standalone, framework-neutral Python library. It is not part of, dependent on, or deployed as another agent runtime.
 
-M6's 30-case provisional development corpus and multi-trial evaluator are merged. M4's bounded MCP and guarded-tool input hardening merged in PR #18. The merged head passed Python CI and dependency audit, but PR #18 has no recorded independent review. PR #19 adds a post-registration ToolSpec approval-metadata recheck; its exact-head checks are pending. The project is not production-qualified or ready for a public release.
+M6's 30-case provisional development corpus and multi-trial evaluator are merged. M4's bounded MCP and guarded-tool input hardening merged in PR #18. The merged head passed Python CI and dependency audit, but PR #18 has no recorded independent review. PR #19 adds fail-closed ToolSpec metadata reads and checks contract permission before validation; exact head `1320443749ae3dde52b2a1fb32421adc9a48642c` passed Python CI [#41119751437](https://github.com/rumman52/Long-Running/actions/runs/41119751437) and dependency audit [#41119751536](https://github.com/rumman52/Long-Running/actions/runs/41119751536). PR #19 remains open without independent review. The project is not production-qualified or ready for a public release.
 
 Main-branch evidence:
 
@@ -25,7 +25,7 @@ Main-branch evidence:
 | M1 deterministic core | Typed contracts, schema validation, action decisions, unit tests | Independent runtime evaluation |
 | M2 persistence | SQLite event history, checkpoints, migrations, multi-process tests, verified backup/restore | Qualify target OS/filesystem, restore drills, backup target, access controls, and retention policy |
 | M3 recovery | Deterministic drift checks, replay, completion verifier, bounded property tests | Broader independent runtime evaluation |
-| M4 guarded boundary | Portable skill, guarded adapter, bounded MCP JSON-RPC subset, official MCP SDK 2.x smoke test; PR #18 merged | Independent security review, PR #19 metadata follow-up, live LLM host tests, direct-handler bypass assessment, and broader MCP client matrix |
+| M4 guarded boundary | Portable skill, guarded adapter, bounded MCP JSON-RPC subset, official MCP SDK 2.x smoke test; PR #18 merged and PR #19 exact-head CI/audit passed | Independent security review, live LLM host tests, direct-handler bypass assessment, and broader MCP client matrix |
 | M5 reconciliation | Provider-neutral coordinator and local fault-injection tests | Real provider adapters and provider-specific idempotency/lookup guarantees |
 | M6 semantic drift | Provider-neutral interface, Gemma/Ollama adapter, strict advisory-only output validation, 30 provisional cases, 1–100 trial evaluator | Independent labels, held-out test set, and live Gemma measurements |
 | M7 framework conformance | Generic async ToolSpec adapter, LangGraph ToolNode adapter, compatibility matrix, synthetic evaluation | Broader framework/version matrix and live LLM-driven host qualification |

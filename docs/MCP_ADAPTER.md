@@ -25,7 +25,7 @@ This demonstration uses fake local callbacks and a temporary SQLite database. It
 
 ## Input-boundary hardening status
 
-PR #18 merged the bounded-input implementation and adversarial LangGraph regression into main at commit `330e5acf3f17e2b0c5b830570b42c85f9a39e07c`. Merged head `0c91e34fa8b57a86673b22f05ab7a6a7e6efb545` passed Python CI [#41114350260](https://github.com/rumman52/Long-Running/actions/runs/41114350260) and dependency audit [#41114350246](https://github.com/rumman52/Long-Running/actions/runs/41114350246). No independent review was recorded. Follow-up PR #19 rechecks mutable ToolSpec approval metadata after registration; its exact-head CI is pending.
+PR #18 merged the bounded-input implementation and adversarial LangGraph regression into main at commit `330e5acf3f17e2b0c5b830570b42c85f9a39e07c`. Merged head `0c91e34fa8b57a86673b22f05ab7a6a7e6efb545` passed Python CI [#41114350260](https://github.com/rumman52/Long-Running/actions/runs/41114350260) and dependency audit [#41114350246](https://github.com/rumman52/Long-Running/actions/runs/41114350246). No independent review was recorded. PR #19 rechecks ToolSpec metadata, blocks metadata-read failures, and checks contract permission before validator invocation. Exact head `1320443749ae3dde52b2a1fb32421adc9a48642c` passed Python CI [#41119751437](https://github.com/rumman52/Long-Running/actions/runs/41119751437) and dependency audit [#41119751536](https://github.com/rumman52/Long-Running/actions/runs/41119751536); independent review remains pending.
 
 Candidate behavior:
 

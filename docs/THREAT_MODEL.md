@@ -100,9 +100,9 @@ This review covers the deterministic validator, intent contract, SQLite event st
 
 ## Explicitly unresolved
 
-The M4 input-boundary hardening merged in PR #18 without a recorded independent review. PR #19 adds the post-registration ToolSpec approval-metadata recheck and remains under CI/review. Do not treat either change as production security qualification. Independent review, live LLM-driven host qualification, alternate-route bypass assessment, and full MCP protocol/client conformance remain outstanding.
+The M4 input-boundary hardening merged in PR #18 without a recorded independent review. PR #19 adds fail-closed ToolSpec metadata reads and moves exact contract authorization before validator invocation; its exact-head Python CI #41119751437 and dependency audit #41119751536 passed. PR #19 remains unreviewed. Do not treat either change as production security qualification. Independent review, live LLM-driven host qualification, alternate-route bypass assessment, and full MCP protocol/client conformance remain outstanding.
 
 
 ## 2026-10-31 input-boundary candidate addendum
 
-PR #18 merged the bounded MCP JSON input, guarded-tool argument/result limits, validated snapshots, and compiled LangGraph adversarial regression. Merged head `0c91e34fa8b57a86673b22f05ab7a6a7e6efb545` passed Python CI #41114350260 and dependency audit #41114350246. No independent review was recorded. PR #19 adds a post-registration ToolSpec approval-metadata recheck; its fresh exact-head CI is pending. The scripted agent is not a live model, and the test does not prove that arbitrary consumer hosts have no alternate unguarded tool route.
+PR #18 merged the bounded MCP JSON input, guarded-tool argument/result limits, validated snapshots, and compiled LangGraph adversarial regression. Merged head `0c91e34fa8b57a86673b22f05ab7a6a7e6efb545` passed Python CI #41114350260 and dependency audit #41114350246. No independent review was recorded. PR #19 adds fail-closed ToolSpec metadata reads and checks contract permission before validator execution; exact head `1320443749ae3dde52b2a1fb32421adc9a48642c` passed Python CI #41119751437 and dependency audit #41119751536. Independent review remains pending. The scripted agent is not a live model, and the test does not prove that arbitrary consumer hosts have no alternate unguarded tool route.
