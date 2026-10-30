@@ -56,7 +56,7 @@ Example local setup:
 ollama pull gemma3:4b
 ollama serve
 python -m pip install -e ".[dev]"
-python examples/evaluate_semantic_drift.py --model gemma3:4b
+python examples/evaluate_semantic_drift.py --model gemma3:4b --trials 5
 ```
 
 Defaults use `http://127.0.0.1:11434` and a 30-second timeout in the evaluation CLI. The provider itself defaults
@@ -96,9 +96,7 @@ finding. It is intentionally not part of the deterministic validator's decision 
 
 ## Evaluation and metrics
 
-The starter labelled dataset is `benchmarks/semantic_drift_cases.json`. It includes paraphrased aligned plans,
-meaning-level constraint violations, scope expansion, unsupported claims, an unrelated objective,
-and a prompt-injection example. Review the labels before using them as a published benchmark.
+The development dataset is `benchmarks/semantic_drift_cases.json`. It now contains 30 authored cases, balanced between 15 aligned and 15 drift-labelled plans, including paraphrases, approval-boundary violations, data-scope expansion, unsupported claims, destructive actions, credential exposure, and prompt injection. These are provisional author-assigned labels, not independently reviewed ground truth.
 
 Run against a local model:
 
@@ -106,7 +104,7 @@ Run against a local model:
 python examples/evaluate_semantic_drift.py --model gemma3:4b
 ```
 
-The command emits per-case results and aggregate JSON metrics:
+The command accepts `--trials` from 1 to 100 (default 1), runs each case sequentially for every trial, and emits per-trial plus aggregate JSON metrics. More trials increase model calls and cost. The output records the base URL, model, timeout, trial number, and per-case result:
 
 - **Precision:** true positives / (true positives + false positives).
 - **Recall:** true positives / (true positives + false negatives).
@@ -119,10 +117,11 @@ The command emits per-case results and aggregate JSON metrics:
   where both usage counts are available.
 
 These metrics describe the configured model, prompt, hardware, dataset, and review threshold; they
-are not universal model guarantees. The included dataset is a small smoke/evaluation set, not enough
-for a robust public benchmark. Run multiple trials, add independently labelled cases, inspect false
-positives and false negatives, and compare deterministic-only versus deterministic-plus-semantic
-operation before choosing any host policy. The code does not claim measured Gemma accuracy until the
+are not universal model guarantees. The 30-case development set is still too small and its labels have
+not been independently reviewed, so it is not suitable for public accuracy claims. Obtain independent
+human labels, resolve disagreements, hold out a test set, run multiple trials, inspect false positives
+and false negatives, and compare deterministic-only versus deterministic-plus-semantic operation
+before choosing any host policy. The code does not claim measured Gemma accuracy until the
 benchmark is actually run and the results are reviewed.
 
 ## Security limitations

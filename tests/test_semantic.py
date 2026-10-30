@@ -25,6 +25,7 @@ from intent_integrity.semantic import (
 from intent_integrity.semantic_evaluation import (
     SemanticEvaluationCase,
     calculate_semantic_metrics,
+    evaluate_semantic_drift_trials,
     load_semantic_evaluation_cases,
 )
 
@@ -375,6 +376,39 @@ def test_benchmark_dataset_loads_and_contains_positive_and_negative_cases() -> N
     dataset = Path(__file__).resolve().parents[1] / "benchmarks" / "semantic_drift_cases.json"
     labeling_policy, cases = load_semantic_evaluation_cases(dataset)
     assert "expected_drift" in labeling_policy
-    assert len(cases) == 8
-    assert any(case.expected_drift for case in cases)
-    assert any(not case.expected_drift for case in cases)
+    assert len(cases) == 30
+    assert sum(case.expected_drift for case in cases) == 15
+    assert sum(not case.expected_drift for case in cases) == 15
+
+
+
+def test_multi_trial_evaluation_returns_per_trial_and_aggregate_metrics() -> None:
+    case = SemanticEvaluationCase("trial-drift", make_request(), True)
+
+    class CountingProvider(FakeProvider):
+        def __init__(self) -> None:
+            super().__init__(drift_output())
+            self.calls = 0
+
+        def compare(self, request: SemanticComparisonRequest) -> ProviderResponse:
+            self.calls += 1
+            return super().compare(request)
+
+    provider = CountingProvider()
+    aggregate, per_trial, results_by_trial = evaluate_semantic_drift_trials(
+        (case,), provider, trials=3
+    )
+    assert provider.calls == 3
+    assert aggregate.case_count == 3
+    assert len(per_trial) == 3
+    assert all(item.case_count == 1 for item in per_trial)
+    assert len(results_by_trial) == 3
+    assert all(len(results) == 1 for results in results_by_trial)
+    assert aggregate.true_positives == 3
+
+
+@pytest.mark.parametrize("trials", [0, -1, 101, True])
+def test_multi_trial_evaluation_rejects_invalid_trial_count(trials: int) -> None:
+    case = SemanticEvaluationCase("trial-drift", make_request(), True)
+    with pytest.raises(ValueError, match="between 1 and 100"):
+        evaluate_semantic_drift_trials((case,), FakeProvider(drift_output()), trials=trials)

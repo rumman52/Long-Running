@@ -276,3 +276,33 @@ def evaluate_semantic_drift(
     """Run each labelled case once, then return metrics and individual validated results."""
     results = tuple(analyze_semantic_drift(case.request, provider) for case in cases)
     return calculate_semantic_metrics(cases, results), results
+
+
+
+def evaluate_semantic_drift_trials(
+    cases: Sequence[SemanticEvaluationCase],
+    provider: SemanticDriftProvider,
+    *,
+    trials: int = 1,
+) -> tuple[
+    SemanticEvaluationMetrics,
+    tuple[SemanticEvaluationMetrics, ...],
+    tuple[tuple[SemanticDriftResult, ...], ...],
+]:
+    """Run a bounded number of sequential trials and return per-trial and aggregate metrics."""
+    if type(trials) is not int or not 1 <= trials <= 100:
+        raise ValueError("trials must be an integer between 1 and 100")
+    if not cases:
+        raise ValueError("at least one evaluation case is required")
+
+    trial_results: list[tuple[SemanticDriftResult, ...]] = []
+    trial_metrics: list[SemanticEvaluationMetrics] = []
+    for _ in range(trials):
+        results = tuple(analyze_semantic_drift(case.request, provider) for case in cases)
+        trial_results.append(results)
+        trial_metrics.append(calculate_semantic_metrics(cases, results))
+
+    aggregate_cases = tuple(cases) * trials
+    aggregate_results = tuple(result for results in trial_results for result in results)
+    aggregate_metrics = calculate_semantic_metrics(aggregate_cases, aggregate_results)
+    return aggregate_metrics, tuple(trial_metrics), tuple(trial_results)
