@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -9,6 +10,11 @@ from dataclasses import dataclass
 from intent_integrity.engine import IntentIntegrityEngine
 from intent_integrity.models import ActionRequest, Decision, IntentContract, ValidationContext
 from intent_integrity.store import ActionAlreadyClaimed
+
+MAX_TOOL_ARGUMENT_BYTES = 1_000_000
+MAX_TOOL_ARGUMENT_DEPTH = 64
+MAX_TOOL_ARGUMENT_NODES = 100_000
+
 
 ToolHandler = Callable[[dict[str, object]], object]
 ContractProvider = Callable[[], IntentContract]
@@ -136,6 +142,88 @@ def _validate_value(value: object, schema: Mapping[str, object], path: str) -> l
     return errors
 
 
+def _json_string_size(value: str) -> int:
+    """Return the UTF-8 size of a JSON-encoded string without building the full encoding."""
+    size = 2  # surrounding quotes
+    short_escapes = {'\\b', '\\f', '\\n', '\\r', '\\t'}
+    for character in value:
+        codepoint = ord(character)
+        if character in {'"', '\\\\'}:
+            size += 2
+        elif codepoint < 0x20:
+            size += 2 if character in short_escapes else 6
+        else:
+            size += len(character.encode('utf-8'))
+        if size > MAX_TOOL_ARGUMENT_BYTES:
+            return size
+    return size
+
+
+def _json_argument_error(value: object) -> str | None:
+    """Check JSON shape, cycle/depth/node bounds, and encoded-size budget iteratively."""
+    stack: list[tuple[str, object, int]] = [('visit', value, 0)]
+    active_containers: set[int] = set()
+    encoded_size = 0
+    visited_nodes = 0
+
+    while stack:
+        operation, current, depth = stack.pop()
+        if operation == 'exit':
+            active_containers.remove(id(current))
+            continue
+
+        visited_nodes += 1
+        if visited_nodes > MAX_TOOL_ARGUMENT_NODES:
+            return 'Arguments contain too many JSON values.'
+        if depth > MAX_TOOL_ARGUMENT_DEPTH:
+            return 'Arguments exceed the maximum JSON nesting depth.'
+
+        if current is None:
+            encoded_size += 4
+        elif isinstance(current, bool):
+            encoded_size += 4 if current else 5
+        elif isinstance(current, str):
+            encoded_size += _json_string_size(current)
+        elif isinstance(current, int):
+            try:
+                encoded_size += len(str(current))
+            except ValueError:
+                return 'Arguments contain an integer that exceeds the supported JSON size.'
+        elif isinstance(current, float):
+            if not math.isfinite(current):
+                return 'Arguments must contain only finite JSON numbers.'
+            encoded_size += len(json.dumps(current, allow_nan=False))
+        elif isinstance(current, dict):
+            identity = id(current)
+            if identity in active_containers:
+                return 'Arguments must not contain circular references.'
+            active_containers.add(identity)
+            stack.append(('exit', current, depth))
+            encoded_size += 2 + max(0, len(current) - 1)
+            for key, child in current.items():
+                if not isinstance(key, str):
+                    return 'JSON object keys must be strings.'
+                encoded_size += _json_string_size(key) + 1
+                stack.append(('visit', child, depth + 1))
+        elif isinstance(current, (list, tuple)):
+            identity = id(current)
+            if identity in active_containers:
+                return 'Arguments must not contain circular references.'
+            active_containers.add(identity)
+            stack.append(('exit', current, depth))
+            encoded_size += 2 + max(0, len(current) - 1)
+            for child in current:
+                stack.append(('visit', child, depth + 1))
+        else:
+            return 'Arguments must contain only JSON-compatible values.'
+
+        if encoded_size > MAX_TOOL_ARGUMENT_BYTES:
+            return f'Arguments exceed the {MAX_TOOL_ARGUMENT_BYTES}-byte JSON limit.'
+
+    return None
+
+
+
 class GuardedToolAdapter:
     """Expose only trusted registered tools and gate every call before execution.
 
@@ -188,14 +276,29 @@ class GuardedToolAdapter:
         if definition is None:
             return self._blocked("UNKNOWN_TOOL", "Unregistered tool; nothing was executed.")
         if not isinstance(arguments, dict) or any(not isinstance(k, str) for k in arguments):
-            return self._blocked("MALFORMED_INPUT", "Tool arguments must be a JSON object.")
+            return self._blocked('MALFORMED_INPUT', 'Tool arguments must be a JSON object.')
         try:
-            json.dumps(arguments, allow_nan=False)
-        except (TypeError, ValueError):
-            return self._blocked("MALFORMED_INPUT", "Arguments must contain finite JSON values.")
-        input_errors = _validate_value(arguments, definition.input_schema, "$")
+            structure_error = _json_argument_error(arguments)
+            if structure_error is not None:
+                return self._blocked('MALFORMED_INPUT', structure_error)
+            serialized_arguments = json.dumps(
+                arguments, allow_nan=False, ensure_ascii=False, separators=(',', ':')
+            )
+            if len(serialized_arguments.encode('utf-8')) > MAX_TOOL_ARGUMENT_BYTES:
+                return self._blocked(
+                    'MALFORMED_INPUT',
+                    f'Arguments exceed the {MAX_TOOL_ARGUMENT_BYTES}-byte JSON limit.',
+                )
+            # Snapshot the exact validated JSON so concurrent/callback mutation cannot
+            # change the values that the action-ID factory or handler receives.
+            validated_arguments = json.loads(serialized_arguments)
+        except (TypeError, ValueError, RecursionError, UnicodeEncodeError):
+            return self._blocked(
+                'MALFORMED_INPUT', 'Arguments must contain finite, bounded JSON values.'
+            )
+        input_errors = _validate_value(validated_arguments, definition.input_schema, '$')
         if input_errors:
-            return self._blocked("MALFORMED_INPUT", " ".join(input_errors))
+            return self._blocked('MALFORMED_INPUT', ' '.join(input_errors))
 
         try:
             contract = self._contract_provider()
@@ -204,7 +307,7 @@ class GuardedToolAdapter:
             context = self._context_provider(contract)
             if not isinstance(context, ValidationContext):
                 raise TypeError("context provider did not return ValidationContext")
-            action_id = self._action_id_factory(contract.contract_id, name, arguments)
+            action_id = self._action_id_factory(contract.contract_id, name, validated_arguments)
             if not isinstance(action_id, str) or not action_id.strip():
                 raise ValueError("action ID factory returned an empty ID")
         except Exception as exc:
@@ -216,7 +319,7 @@ class GuardedToolAdapter:
         action = ActionRequest(action_id=action_id, category=definition.action_category)
 
         def execute() -> object:
-            result = definition.handler(dict(arguments))
+            result = definition.handler(dict(validated_arguments))
             json.dumps(result, allow_nan=False)
             return result
 
