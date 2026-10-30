@@ -128,16 +128,19 @@ def test_stdio_rejects_non_finite_json_constants_and_continues() -> None:
     with SQLiteEventStore(":memory:") as store:
         server, _ = make_server(store)
         output = StringIO()
+        invalid_requests = (
+            '{"jsonrpc":"2.0","id":1,"method":"ping","params":{"n":NaN}}\n'
+            '{"jsonrpc":"2.0","id":2,"method":"ping","params":{"n":Infinity}}\n'
+            '{"jsonrpc":"2.0","id":3,"method":"ping","params":{"n":-Infinity}}\n'
+            '{"jsonrpc":"2.0","id":4,"method":"ping","params":{"n":1e999}}\n'
+        )
         server.serve_stdio(
-            StringIO(
-                '{"jsonrpc":"2.0","id":NaN,"method":"ping"}\n'
-                '{"jsonrpc":"2.0","id":2,"method":"ping"}\n'
-            ),
+            StringIO(invalid_requests + '{"jsonrpc":"2.0","id":5,"method":"ping"}\n'),
             output,
         )
         replies = [json.loads(line) for line in output.getvalue().splitlines()]
-        assert replies[0]["error"]["code"] == -32700
-        assert replies[1]["result"] == {}
+        assert [reply["error"]["code"] for reply in replies[:4]] == [-32700] * 4
+        assert replies[4]["result"] == {}
 
 
 def test_stdio_rejects_duplicate_json_object_keys() -> None:
@@ -188,3 +191,15 @@ def test_stdio_rejects_excessive_json_nesting_and_continues() -> None:
         replies = [json.loads(line) for line in output.getvalue().splitlines()]
         assert replies[0]["error"]["code"] == -32700
         assert replies[1]["result"] == {}
+
+
+
+def test_handle_message_rejects_non_finite_request_id() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        server, _ = make_server(store)
+        reply = server.handle_message(
+            {"jsonrpc": "2.0", "id": float("nan"), "method": "ping"}
+        )
+        assert reply is not None
+        assert reply["error"]["code"] == -32600
+        assert reply["id"] is None
