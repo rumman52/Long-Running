@@ -140,3 +140,24 @@ def test_registry_rejects_bad_schema_duplicate_name_and_schema_mutation() -> Non
         }).decision == Decision.BLOCK
         with pytest.raises(ValueError, match="already registered"):
             adapter.register_tool(adapter._tools["save_report"])  # type: ignore[attr-defined]
+
+
+def test_oversized_tool_arguments_are_rejected_before_handler_execution() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        adapter, calls = make_adapter(store)
+        result = adapter.call_tool("save_report", {"report": "x" * 1_000_001})
+        assert result.decision == Decision.BLOCK
+        assert "MALFORMED_INPUT" in result.reason_codes
+        assert calls == []
+
+
+def test_deeply_nested_tool_arguments_fail_closed_without_raising() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        adapter, calls = make_adapter(store)
+        nested: object = "too deep"
+        for _ in range(1_200):
+            nested = [nested]
+        result = adapter.call_tool("save_report", {"report": nested})
+        assert result.decision == Decision.BLOCK
+        assert "MALFORMED_INPUT" in result.reason_codes
+        assert calls == []
