@@ -111,7 +111,7 @@
 - Rebased code-bearing head: `a66e9a4f0c30f6d5de8fe91c15640eaadd83cb4c`.
 - Python CI [#41113067617](https://github.com/rumman52/Long-Running/actions/runs/41113067617): success.
 - Dependency audit [#41113067648](https://github.com/rumman52/Long-Running/actions/runs/41113067648): success.
-- The candidate remains unmerged and requires independent security review. The scripted LangGraph test is not live-LLM or deployed-host qualification.
+- At the time of this original plan, the candidate was unmerged. PR #18 subsequently merged the boundary hardening; no independent review was recorded. PR #19 carries the post-registration metadata recheck. The scripted LangGraph test is not live-LLM or deployed-host qualification.
 
 
 ## Post-merge status — 2026-10-31
