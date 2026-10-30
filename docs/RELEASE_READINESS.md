@@ -28,7 +28,7 @@ This is an engineering readiness review, not a production security certification
 | M4 guarded boundary | Portable skill, guarded adapter, MCP JSON-RPC subset, official MCP SDK 2.x smoke test | Code-bearing candidate head passed exact-head CI and dependency audit; independent review, live LLM host tests, direct-handler bypass assessment, and broader MCP client matrix remain |
 | M5 reconciliation | Provider-neutral coordinator and local fault-injection tests | Real provider adapters and provider-specific idempotency/lookup guarantees |
 | M6 semantic drift | Provider-neutral interface, Gemma/Ollama adapter, strict advisory-only output validation, 30 provisional cases, 1–100 trial evaluator | Independent labels, held-out test set, and live Gemma measurements |
-| M7 framework conformance | Generic async ToolSpec adapter, LangGraph ToolNode adapter, compatibility matrix, synthetic evaluation | Broader framework/version matrix and live LLM-driven host qualification |
+| M7 framework conformance | Generic async ToolSpec adapter, LangGraph ToolNode adapter, compatibility matrix, synthetic evaluation; CI artifact #41113418138 reports 4/6 unsafe prevented in hybrid fixture, 80% safe-task success, one false block, and 100% registered-adapter probe resistance | Broader framework/version matrix and live LLM-driven host qualification; fixture metrics are not live-model evidence |
 | M8 release process | Apache-2.0 candidate, contribution/security guidance, Dependabot, pip-audit, pinned workflow actions, demos and changelog | License sign-off, dependency lock and transitive-license review, independent external review, branch protection, and public release |
 
 ## Security and supply-chain observations

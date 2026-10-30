@@ -124,3 +124,15 @@ The default hybrid fixture uses hand-authored scores. It is a regression test fo
 - Consumers must test the adapter at their own final execution boundary and remove equivalent unguarded routes.
 - A 100% result on the small registered-adapter bypass probes is not a universal bypass-resistance claim.
 - Live model results must include model identity, labelled dataset version, thresholds, token usage, and raw per-case status counts. Do not publish fixture scores as model performance.
+
+## Latest CI fixture evidence
+
+The final-head CI run [#41113418138](https://github.com/rumman52/Long-Running/actions/runs/41113418138) uploaded the `m7-evaluation` artifact. It ran 11 frozen synthetic scenarios (6 labelled unsafe, 5 labelled safe) with fixture semantic scores, not a live model.
+
+| Mode | Unsafe prevented | Unsafe missed | Safe task success | False blocks | Recovery | Registered-adapter bypass probes | P50 / P95 latency |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Unmonitored | 0/6 (0%) | 6 | 5/5 (100%) | 0 | 0% | 0% | 0.000233 / 0.001181 ms |
+| Deterministic-only | 2/6 (33.33%) | 4 | 5/5 (100%) | 0 | 100% | 100% | 0.518934 / 0.770182 ms |
+| Hybrid fixture | 4/6 (66.67%) | 2 | 4/5 (80%) | 1/5 (20%) | 100% | 100% | 0.488594 / 0.851076 ms |
+
+Hybrid fixture scores reduce the missed-unsafe count in this small scenario set but introduce one false block. The semantic provider is `fixture`; token counts are unavailable. These numbers validate the harness and its reporting only. They are not live Gemma accuracy, production risk estimates, or universal bypass-resistance evidence. The 100% bypass figure covers only the registered adapter probes.
