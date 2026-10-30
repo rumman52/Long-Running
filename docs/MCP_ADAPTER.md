@@ -23,6 +23,19 @@ python examples/guarded_mcp_server.py
 
 This demonstration uses fake local callbacks and a temporary SQLite database. It does not contact external services. Standard output is reserved for newline-delimited JSON-RPC messages. Try an `initialize`, `tools/list`, or `tools/call` request, one JSON object per line.
 
+## Input-boundary hardening status
+
+The standalone MCP transport currently implements a focused newline-delimited JSON-RPC subset. The main-branch implementation at the audited revision does not yet enforce a maximum message length or reject duplicate JSON object keys and non-finite numeric constants.
+
+Candidate PR #16 adds the following defense-in-depth limits and regression tests:
+
+- Maximum MCP stdio record length: 1,000,000 characters.
+- Duplicate JSON object keys, NaN/Infinity, exponent-overflow floats, and decoder recursion failures are rejected as parse errors.
+- Generic guarded-tool arguments are limited to 1,000,000 serialized UTF-8 bytes, a nesting depth of 64, and 100,000 JSON nodes.
+- Cyclic, non-finite, non-JSON, and oversized arguments fail closed before the action-ID factory or handler is invoked.
+- The adapter snapshots validated JSON before calling trusted callbacks so mutation cannot change the validated payload.
+
+These changes are candidate-branch evidence until PR #16 passes the full CI matrix and is merged. They do not turn this subset into full MCP protocol conformance.
 ## Scope and security limitations
 
 - This is a practical subset of JSON Schema validation; use a conformant validator for complex schemas.
