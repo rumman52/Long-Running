@@ -42,6 +42,7 @@ def make_adapter(
     store: SQLiteEventStore,
     fail_context: bool = False,
     action_id_calls: list[tuple[str, str, dict[str, object]]] | None = None,
+    oversized_result: bool = False,
 ):
     active = contract()
     engine = IntentIntegrityEngine(store, clock=lambda: NOW)
@@ -75,9 +76,12 @@ def make_adapter(
         "type": "object", "properties": {"report": {"type": "string", "minLength": 1}},
         "required": ["report"], "additionalProperties": False,
     }
+    def save_report(args: dict[str, object]) -> object:
+        calls.append(dict(args))
+        return "x" * 1_000_001 if oversized_result else {"saved": True}
+
     adapter.register_tool(ToolDefinition(
-        "save_report", "Save draft", "write_report", schema,
-        lambda args: (calls.append(dict(args)) or {"saved": True}),
+        "save_report", "Save draft", "write_report", schema, save_report,
     ))
     adapter.register_tool(ToolDefinition(
         "publish_report", "Publish after approval", "publish_report", schema,
@@ -277,3 +281,21 @@ def test_action_id_factory_mutation_cannot_change_validated_handler_arguments() 
         assert result.decision == Decision.ALLOW
         assert original == {"report": "validated report"}
         assert calls == [{"report": "validated report"}]
+
+
+
+def test_oversized_tool_result_becomes_unknown_after_handler_execution() -> None:
+    with SQLiteEventStore(":memory:") as store:
+        adapter, calls = make_adapter(store, oversized_result=True)
+        result = adapter.call_tool("save_report", {"report": "Quarterly"})
+        assert result.decision == Decision.BLOCK
+        assert result.executed is False
+        assert result.outcome_unknown is True
+        assert "ENGINE_FAILURE_OUTCOME_UNKNOWN" in result.reason_codes
+        assert calls == [{"report": "Quarterly"}]
+        event_types = {
+            record.event.event_type.value
+            for record in store.list_events(contract().contract_id)
+        }
+        assert "ACTION_OUTCOME_UNKNOWN" in event_types
+        assert "ACTION_SUCCEEDED" not in event_types

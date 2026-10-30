@@ -14,6 +14,7 @@ from intent_integrity.store import ActionAlreadyClaimed
 MAX_TOOL_ARGUMENT_BYTES = 1_000_000
 MAX_TOOL_ARGUMENT_DEPTH = 64
 MAX_TOOL_ARGUMENT_NODES = 100_000
+MAX_TOOL_RESULT_BYTES = MAX_TOOL_ARGUMENT_BYTES
 
 
 ToolHandler = Callable[[dict[str, object]], object]
@@ -327,8 +328,17 @@ class GuardedToolAdapter:
 
         def execute() -> object:
             result = definition.handler(json.loads(serialized_arguments))
-            json.dumps(result, allow_nan=False)
-            return result
+            result_error = _json_argument_error(result)
+            if result_error is not None:
+                raise ValueError(f"Tool result is not bounded JSON: {result_error}")
+            serialized_result = json.dumps(
+                result, allow_nan=False, ensure_ascii=False, separators=(",", ":")
+            )
+            if len(serialized_result.encode("utf-8")) > MAX_TOOL_RESULT_BYTES:
+                raise ValueError(
+                    f"Tool result exceeds the {MAX_TOOL_RESULT_BYTES}-byte JSON limit."
+                )
+            return json.loads(serialized_result)
 
         try:
             outcome = self._engine.guarded_execute(contract, action, context, execute)
