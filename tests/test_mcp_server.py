@@ -209,7 +209,6 @@ def test_stdio_rejects_excessive_json_nesting_and_continues() -> None:
         assert replies[1]["result"] == {}
 
 
-
 def test_handle_message_rejects_non_finite_request_id() -> None:
     with SQLiteEventStore(":memory:") as store:
         server, _ = make_server(store)
