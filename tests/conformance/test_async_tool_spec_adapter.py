@@ -246,3 +246,37 @@ def test_action_id_factory_mutation_cannot_change_validated_handler_input() -> N
         assert calls == [{"report": "validated report"}]
     finally:
         store.close()
+
+
+def test_tool_spec_validator_mutation_cannot_change_action_identity_snapshot() -> None:
+    calls: list[object] = []
+    action_inputs: list[dict[str, object]] = []
+
+    class MutatingToolSpec(FakeAsyncToolSpec):
+        def validate(self, arguments: dict[str, object]) -> object:
+            self.validation_calls += 1
+            arguments["report"] = "normalized report"
+            return {"report": arguments["report"]}
+
+    async def handler(validated: object) -> object:
+        calls.append(validated)
+        return {"saved": True}
+
+    def action_id(_task: str, _name: str, args: dict[str, object]) -> str:
+        action_inputs.append(dict(args))
+        return "stable-action"
+
+    store, adapter = make_adapter(
+        handler,
+        MutatingToolSpec(),
+        action_id_factory=action_id,
+    )
+    try:
+        original = {"report": "original report"}
+        result = asyncio.run(adapter.call_tool("report.create", original))
+        assert result.decision == Decision.ALLOW
+        assert original == {"report": "original report"}
+        assert action_inputs == [{"report": "original report"}]
+        assert calls == [{"report": "normalized report"}]
+    finally:
+        store.close()
