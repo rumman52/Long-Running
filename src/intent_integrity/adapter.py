@@ -145,19 +145,18 @@ def _validate_value(value: object, schema: Mapping[str, object], path: str) -> l
 def _json_string_size(value: str) -> int:
     """Return the UTF-8 size of a JSON-encoded string without building the full encoding."""
     size = 2  # surrounding quotes
-    short_escapes = {'\\b', '\\f', '\\n', '\\r', '\\t'}
+    short_escapes = {0x08, 0x09, 0x0A, 0x0C, 0x0D}
     for character in value:
         codepoint = ord(character)
-        if character in {'"', '\\\\'}:
+        if codepoint in {0x22, 0x5C}:
             size += 2
         elif codepoint < 0x20:
-            size += 2 if character in short_escapes else 6
+            size += 2 if codepoint in short_escapes else 6
         else:
             size += len(character.encode('utf-8'))
         if size > MAX_TOOL_ARGUMENT_BYTES:
             return size
     return size
-
 
 def _json_argument_error(value: object) -> str | None:
     """Check JSON shape, cycle/depth/node bounds, and encoded-size budget iteratively."""
@@ -307,7 +306,9 @@ class GuardedToolAdapter:
             context = self._context_provider(contract)
             if not isinstance(context, ValidationContext):
                 raise TypeError("context provider did not return ValidationContext")
-            action_id = self._action_id_factory(contract.contract_id, name, validated_arguments)
+            action_id = self._action_id_factory(
+                contract.contract_id, name, json.loads(serialized_arguments)
+            )
             if not isinstance(action_id, str) or not action_id.strip():
                 raise ValueError("action ID factory returned an empty ID")
         except Exception as exc:
@@ -319,7 +320,7 @@ class GuardedToolAdapter:
         action = ActionRequest(action_id=action_id, category=definition.action_category)
 
         def execute() -> object:
-            result = definition.handler(dict(validated_arguments))
+            result = definition.handler(json.loads(serialized_arguments))
             json.dumps(result, allow_nan=False)
             return result
 
